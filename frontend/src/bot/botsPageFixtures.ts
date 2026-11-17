@@ -270,14 +270,13 @@ export function hotListView(partial: Record<string, unknown> = {}): Record<strin
 
 const EMPTY_LANE = { symbol: null, since: null, depth: false, tape: false, recording: false, error: null };
 
-/** IBKR's three Level 2 lines, one per lane (ADR 071): yours on GRML, Claude's empty, the bots' on AISP. */
+/** IBKR's three Level 2 lines, one per lane (ADR 071, ADR 072): yours on GRML, Claude's empty, the brain's on AISP. */
 export function linesView(partial: Record<string, unknown> = {}): Record<string, unknown> {
   return {
-    schema_version: 1, generated_at: 1_790_000_000, recording_error: null, tape_capacity: null,
+    schema_version: 2, generated_at: 1_790_000_000, recording_error: null, tape_capacity: null,
     you: { ...EMPTY_LANE, symbol: 'GRML', depth: true, tape: true, recording: true },
     claude: EMPTY_LANE,
-    bots: { ...EMPTY_LANE, symbol: 'AISP', depth: true, tape: false, setup: 'first_pullback', why: 'near',
-      waiting: [{ symbol: 'RUNR', setup: 'bull_flag', why: 'armed' }] },
+    brain: { ...EMPTY_LANE, symbol: 'AISP', depth: true, tape: false, why: 'First pullback near its trigger' },
     ...partial,
   };
 }

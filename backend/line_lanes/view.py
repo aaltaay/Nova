@@ -8,9 +8,9 @@ import logging
 import time
 from typing import Any
 
-from line_lanes import bots, lanes, recording
+from line_lanes import brain, lanes, recording
 from line_lanes.constants_lanes import LANES_SCHEMA_VERSION
-from line_lanes.table import BOTS, CLAUDE, YOU
+from line_lanes.table import BRAIN, CLAUDE, YOU
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +43,7 @@ def view(now: float | None = None) -> dict[str, Any]:
         "generated_at": ts,
         "you": _lane(YOU, recorded),
         "claude": _lane(CLAUDE, recorded),
-        "bots": {**_lane(BOTS, recorded), **bots.status()},
+        "brain": {**_lane(BRAIN, recorded), "why": brain.why()},
         "tape_capacity": _tape_capacity(),
         "recording_error": rec["last_error"],
     }

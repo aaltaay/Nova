@@ -41,18 +41,18 @@ type DepthState = ReturnType<typeof useIbkrDepth>;
 
 const LANE_FRAME = {
   type: 'error', symbol: 'ABC', message: 'Your Level 2 moved to TGHL.', evicted: true,
-  lane: { you: 'TGHL', claude: null, bots: null },
+  lane: { you: 'TGHL', claude: null, brain: null },
 };
 
 const empty = { symbol: null, since: null, depth: false, tape: false, recording: false, error: null };
 
-function lanesAnswer(you: string | null, bots: string | null = null) {
+function lanesAnswer(you: string | null, brain: string | null = null) {
   return {
     ok: true,
     status: 200,
     json: async () => ({
-      schema_version: 1, you: { ...empty, symbol: you }, claude: empty,
-      bots: { ...empty, symbol: bots, setup: null, why: null, waiting: [] }, recording_error: null,
+      schema_version: 2, you: { ...empty, symbol: you }, claude: empty,
+      brain: { ...empty, symbol: brain, why: null }, recording_error: null,
     }),
   };
 }
@@ -140,7 +140,7 @@ describe('useIbkrDepth on a stock no lane is on', () => {
     expect(String(fetchMock.mock.calls[0][0])).toContain('/api/ibkr/lanes');
     fetchMock.mockResolvedValueOnce(lanesAnswer('TGHL', 'ABC'));
     await wait(LANE_WAIT_POLL_MS);
-    expect(sockets()).toHaveLength(2);                       // the bots' lane came to ABC: asked again
+    expect(sockets()).toHaveLength(2);                       // the brain's lane came to ABC: asked again
     expect(sockets()[1].url).toContain('front=0');           // ... without moving your lane
     await wait(30_000);
     expect(fetchMock).toHaveBeenCalledTimes(2);              // and the poll stopped

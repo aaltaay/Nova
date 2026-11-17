@@ -1,0 +1,269 @@
+/* The brain on the desk (ADR 072, approved mockup brain-switches v1 sections 1-2): the header pill with its On / Off
+   switch, its panel, and the frame on its Level 2 line -- the twin of Claude's (claude_seat/claudeSeat.css), in the
+   brain's purple everywhere (OWNER_COLORS.brain, --nova-owner-brain). The pill's size is Claude's as built, so the
+   two sit as twins in the header. */
+.brain-pill-wrap,
+.brain-panel,
+.brain-line-frame {
+  --brain: var(--nova-owner-brain, #8b5cf6);
+  --brain-line: rgba(255, 255, 255, 0.12);
+  --brain-line2: rgba(255, 255, 255, 0.07);
+  --brain-muted: var(--nova-text-muted, #98989d);
+  --brain-dim: rgba(152, 152, 157, 0.72);
+  --brain-amber: #ff9f0a;
+  --brain-green: #30d158;
+  --brain-red: #ff453a;
+  --brain-blue: #0a84ff;
+  --brain-raised: #2c2c2e;
+  --brain-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.brain-mark {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  border-radius: 5px;
+  background: var(--brain, #8b5cf6);
+  color: #fff;
+}
+
+.brain-num { font-family: var(--brain-mono); font-variant-numeric: tabular-nums; }
+.brain-num.is-up { color: var(--brain-green); }
+.brain-num.is-dn { color: var(--brain-red); }
+
+.brain-pill-wrap { position: relative; display: inline-flex; flex: none; }
+/* The pill: the words open the panel, the switch at its right flips the brain On or Off. */
+.brain-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 24px;
+  padding: 0 3px 0 0;
+  border-radius: 12px;
+  border: 1px solid var(--brain-line);
+  background: #1a1a1c;
+  color: var(--nova-text, #f5f5f7);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.brain-pill:hover { border-color: var(--brain); }
+.brain-pill--off { opacity: 0.62; }
+.brain-pill--wait { border-color: #6b4a12; background: #2a1e0b; }
+.brain-pill--done { border-color: #5a1c18; background: #2a0f0d; }
+.brain-pill__open {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 100%;
+  padding: 0 2px 0 4px;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.brain-pill__text { font-weight: 600; }
+.brain-pill__text i { font-style: normal; font-weight: 500; color: var(--brain-muted); }
+/* A refused press, under the pill in Nova's words until it is read (a click puts it away). */
+.brain-pill__why {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 1200;
+  width: max-content;
+  max-width: 340px;
+  padding: 5px 9px;
+  border: 1px solid #6b4a12;
+  border-radius: 7px;
+  background: #2a1e0b;
+  color: var(--brain-amber);
+  font: inherit;
+  font-size: 11.5px;
+  line-height: 1.4;
+  text-align: left;
+  white-space: normal;
+  cursor: pointer;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.6);
+}
+
+/* The On / Off switch (mockup section 1): green with the knob right while On. */
+.brain-switch {
+  position: relative;
+  flex: 0 0 30px;
+  width: 30px;
+  height: 18px;
+  padding: 0;
+  border: 0;
+  border-radius: 9px;
+  background: #3a3a3c;
+  cursor: pointer;
+}
+.brain-switch::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #d1d1d6;
+  transition: left 0.12s ease-out;
+}
+.brain-switch.is-on { background: var(--brain-green); }
+.brain-switch.is-on::after { left: 14px; background: #fff; }
+.brain-switch.is-big { flex-basis: 42px; width: 42px; height: 24px; border-radius: 12px; }
+.brain-switch.is-big::after { width: 20px; height: 20px; }
+.brain-switch.is-big.is-on::after { left: 20px; }
+.brain-switch:disabled { opacity: 0.5; cursor: default; }
+.brain-switch:focus-visible { outline: 2px solid var(--brain); outline-offset: 2px; }
+
+/* The panel (mockup section 2, the left panel). */
+.brain-panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 1200;
+  width: 430px;
+  max-width: calc(100vw - 24px);
+  overflow: hidden;
+  border: 1px solid var(--brain-line);
+  border-radius: 10px;
+  background: #1a1a1c;
+  color: var(--nova-text, #f5f5f7);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5);
+  font-size: 12.5px;
+  font-weight: 400;
+  line-height: 1.4;
+  white-space: normal;
+}
+.brain-panel__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--brain-line2);
+}
+.brain-panel__head .brain-mark { border-radius: 7px; }
+.brain-panel__grow { flex: 1; min-width: 0; }
+.brain-panel__title { font-size: 13.5px; font-weight: 650; }
+.brain-panel__sub { color: var(--brain-muted); font-size: 12px; }
+.brain-panel__switch { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 600; }
+.brain-panel__say {
+  margin: 10px 14px 0;
+  padding: 9px 11px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--brain) 12%, transparent);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+.brain-panel__say b { display: block; margin-bottom: 2px; color: var(--brain-muted); font-size: 11px; font-weight: 600; }
+.brain-panel__rows { padding: 8px 14px 4px; }
+.brain-panel__row {
+  display: grid;
+  grid-template-columns: 92px 1fr;
+  gap: 10px;
+  padding: 6px 0;
+  border-top: 1px solid var(--brain-line2);
+  font-size: 12.5px;
+}
+.brain-panel__row:first-child { border-top: 0; }
+.brain-panel__row > span:first-child { color: var(--brain-muted); }
+.brain-panel__row b,
+.brain-panel__read b { font-weight: 700; }
+/* A ticker in the panel is a door to its Trader tab, drawn as the words around it. */
+.brain-panel .ticker-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.brain-panel .ticker-link:hover { text-decoration: underline; }
+.brain-panel__muted { color: var(--brain-muted); }
+.brain-panel__meter {
+  display: inline-block;
+  vertical-align: middle;
+  width: 110px;
+  height: 5px;
+  margin: 0 8px;
+  overflow: hidden;
+  border-radius: 3px;
+  background: var(--brain-raised);
+}
+.brain-panel__meter i { display: block; height: 100%; background: var(--brain-amber); }
+.brain-panel__link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--brain-blue);
+  font: inherit;
+  cursor: pointer;
+}
+button.brain-panel__link:hover { text-decoration: underline; }
+.brain-panel__reading { padding: 4px 14px 12px; }
+.brain-panel__reading-head {
+  margin: 6px 0;
+  color: var(--brain-muted);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.brain-panel__read {
+  display: grid;
+  grid-template-columns: 54px 1fr auto;
+  gap: 10px;
+  align-items: center;
+  padding: 5px 0;
+  border-top: 1px solid var(--brain-line2);
+  font-size: 12.5px;
+}
+.brain-panel__tag {
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--brain-raised);
+  color: var(--brain-muted);
+  font-size: 10.5px;
+}
+.brain-panel__tag.is-lane { background: color-mix(in srgb, var(--brain) 16%, transparent); color: var(--brain); }
+.brain-panel__warn { margin: 0; padding: 0 14px 8px; color: var(--brain-amber); font-size: 11.5px; line-height: 1.45; }
+.brain-panel__help {
+  padding: 9px 14px 12px;
+  border-top: 1px solid var(--brain-line2);
+  color: var(--brain-dim);
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+.brain-panel__help b { color: var(--brain-muted); font-weight: 600; }
+
+/* The brain's Level 2 line on the Trader: the twin of Claude's frame, in purple. */
+.brain-line-frame {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 0;
+  min-height: 0;
+  margin-top: 9px;
+  border: 2px solid var(--brain);
+  border-radius: 6px;
+}
+.brain-line-frame--off { display: contents; }
+.brain-line-frame__tag {
+  position: absolute;
+  top: -9px;
+  right: 8px;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 16px;
+  padding: 0 6px 0 2px;
+  border-radius: 4px;
+  background: var(--brain);
+  color: #fff;
+  font-size: 10.5px;
+  font-weight: 700;
+}
+.brain-line-frame__tag .brain-mark { background: #fff; color: var(--brain); }

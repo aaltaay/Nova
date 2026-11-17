@@ -34,6 +34,7 @@ Origin = Literal[
     "margin_call",
     "live_trader",
     "claude",
+    "brain",       # ADR 072: the brain's entries, stop moves, closes and cancels through its door, Paper only
     "close_bots",   # the operator's Close on a bots' row (ADR 069), retired with the bots (ADR 072)
     "takeover",     # ADR 072: a switched-off trader's entries, and its exits before your close of a handed stock
 ]

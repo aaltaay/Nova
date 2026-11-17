@@ -111,7 +111,7 @@ def refusal(symbol: str | None) -> str | None:
 
 
 def wire() -> dict[str, Any]:
-    """Who is on what, for a frame: ``{you, claude, bots}``."""
+    """Who is on what, for a frame: ``{you, claude, brain}``."""
     return {owner: _lanes.on(owner) for owner in OWNERS}
 
 

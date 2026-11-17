@@ -244,18 +244,9 @@ def test_the_plan_says_not_a_trade():
     assert choose([dip], 110.0) is dip                  # alone, the dip leads (and its plan is NOT A TRADE)
 
 
-def test_it_never_takes_the_bots_lane_and_a_dip_that_died_refused_no_trade():
-    from constants_bot import BOT_LEVEL_STRATEGY
+def test_a_dip_that_died_refused_no_trade():
     from eyes.aftermath import after
-    from line_lanes.bots_pick import pick
 
-    def fake(setup: str) -> SimpleNamespace:
-        return SimpleNamespace(setup=setup, trades=lambda now: ["t1"], rows={"t1": {"symbol": SYM}},
-                               watching=lambda: [], det={}, active_id={})
-
-    on = {DIP: BOT_LEVEL_STRATEGY, "first_pullback": BOT_LEVEL_STRATEGY}
-    assert pick([fake(DIP)], on, {SYM}, 0.0) == []                    # watch-only (#847): never a bot's
-    assert [(c.symbol, c.why) for c in pick([fake("first_pullback")], on, {SYM}, 0.0)] == [(SYM, "trade")]
     ep = {"setup_type": DIP, "died_at": 100.0, "end": "failed", "leg": {"t": 0.0, "high": 4.39, "low": 3.99},
           "setup": None, "died_bar_t": 60.0}
     assert after(ep, [], now=1_000.0) is None

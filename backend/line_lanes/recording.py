@@ -4,7 +4,7 @@ maintainer: one-concern which lane stocks Nova records, and when those recording
 
 While the recording switch is On (``leaderboard.auto_record_switch``, ``NOVA_AUTO_RECORD=0`` still wins):
 
-- the bots' lane's stock, while it is on the lane;
+- the brain's lane's stock, while it is on the lane;
 - Claude's lane's stock, while it is on the lane;
 - your lane's stock while you watch it -- a fresh desk window shows it in front (``focus``), or a socket opened in
   front on it is still open and no desk window lists it as a hidden Trader tab (the phone, a browser,
@@ -85,7 +85,7 @@ def watching_you(symbol: str, now: float) -> bool:
 def wanted(now: float) -> set[str]:
     """The lane stocks Nova records now (the switch aside)."""
     table = lanes.table()
-    out = {s for s in (table.bots, table.claude) if s}
+    out = {s for s in (table.brain, table.claude) if s}
     if table.you and watching_you(table.you, now):
         out.add(table.you)
     for sym in [s for s in _seen_you if s != table.you]:

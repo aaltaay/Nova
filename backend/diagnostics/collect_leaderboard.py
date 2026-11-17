@@ -116,7 +116,7 @@ def leaderboard_rows(
     return rows
 
 
-_OWNERS = (("you", "yours"), ("claude", "Claude's"), ("bots", "the bots'"))
+_OWNERS = (("you", "yours"), ("claude", "Claude's"), ("brain", "the brain's"))
 
 
 def _lanes_row(lanes: dict[str, Any] | None, switch: dict[str, Any] | None) -> dict[str, Any]:
@@ -137,7 +137,7 @@ def _lanes_row(lanes: dict[str, Any] | None, switch: dict[str, Any] | None) -> d
         parts.append(f"{word} on {sym}{'' if up else ' (asking IBKR)'}{', recording' if lane.get('recording') else ''}")
         if lane.get("error"):
             problems.append(f"{sym}: {lane['error']}")
-    for why in ((lanes.get("bots") or {}).get("error"), lanes.get("recording_error")):
+    for why in ((lanes.get("brain") or {}).get("error"), lanes.get("recording_error")):
         if why:
             problems.append(str(why))
     detail = "; ".join(parts)
@@ -153,7 +153,7 @@ def _lanes_row(lanes: dict[str, Any] | None, switch: dict[str, Any] | None) -> d
         title="Level 2 lanes and recording",
         state=state,
         detail=detail,
-        cause=("Three lanes hold Level 2 and Time & Sales: yours, Claude's and the bots' (one setup a bot may buy). "
+        cause=("Three lanes hold Level 2 and Time & Sales: yours, Claude's and the brain's (the one stock it names). "
                "Nova records only what a lane watches (ADR 071)."),
         fix="Nothing to do." if state != DIAG_STATE_WARN else "Each lane asks IBKR again on its own every 15 s.",
         evidence={"lanes": lanes, "switch": switch},

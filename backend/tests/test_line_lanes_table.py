@@ -1,7 +1,7 @@
 """The three lanes (ADR 071): which stock each is on, and which IBKR lines a change ends and opens."""
 import pytest
 
-from line_lanes.table import BOTS, CLAUDE, YOU, Lanes, Move, put
+from line_lanes.table import BRAIN, CLAUDE, YOU, Lanes, Move, put
 
 
 def test_an_empty_desk_holds_no_lines():
@@ -32,26 +32,26 @@ def test_the_same_stock_again_changes_nothing():
 
 
 def test_no_owner_ever_changes_anothers_lane():
-    lanes = Lanes(you="XLAB", claude="LUNR", bots="AIMD")
+    lanes = Lanes(you="XLAB", claude="LUNR", brain="AIMD")
     after, move = put(lanes, YOU, "TGHL")
-    assert (after.claude, after.bots) == ("LUNR", "AIMD")
+    assert (after.claude, after.brain) == ("LUNR", "AIMD")
     assert move == Move(close=("XLAB",), open=("TGHL",))
     assert len(after.stocks()) == 3
 
 
 def test_a_stock_two_owners_watch_is_one_pair_of_lines():
-    lanes, _ = put(Lanes(), BOTS, "XLAB")
+    lanes, _ = put(Lanes(), BRAIN, "XLAB")
     lanes, move = put(lanes, YOU, "XLAB")
-    assert not move                                  # the bots' lines are already up
+    assert not move                                  # the brain's lines are already up
     assert lanes.stocks() == ("XLAB",)
-    assert lanes.owners_of("xlab") == (YOU, BOTS)
+    assert lanes.owners_of("xlab") == (YOU, BRAIN)
 
 
 def test_leaving_a_shared_stock_never_ends_the_other_owners_lines():
-    lanes = Lanes(you="XLAB", bots="XLAB")
+    lanes = Lanes(you="XLAB", brain="XLAB")
     after, move = put(lanes, YOU, "TGHL")
-    assert move == Move(open=("TGHL",))             # XLAB stays up for the bots
-    assert after.owners_of("XLAB") == (BOTS,)
+    assert move == Move(open=("TGHL",))             # XLAB stays up for the brain
+    assert after.owners_of("XLAB") == (BRAIN,)
 
 
 def test_an_emptied_lane_ends_its_lines_and_stays_empty():

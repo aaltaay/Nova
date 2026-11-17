@@ -31,7 +31,7 @@ VENUE_CHANGED = "VENUE_CHANGED"
 # ADR 048: the closes Nova makes on a venue whatever the desk shows; ADR 055: the Live Trader bot's, on Paper;
 # ADR 056 / 061: the daily loss limit's Auto sell, any line's, on the account that reached it.
 NOVA_CLOSE_ORIGINS = ("day_cover", "margin_call", "live_trader", "loss_limit", "loss_limit_you", "loss_limit_bots",
-                      "claude")
+                      "claude", "brain")
 _LIVE_LOSS_LIMIT = ("loss_limit", "loss_limit_you")   # the Bots line never sells on Live: a bot never trades it
 
 
@@ -131,6 +131,8 @@ def wrong_venue(cmd: ExecutionCommand, send_venue: str) -> str | None:
     """Why the desk is not where the caller meant, or None. Claude's sends are Paper's alone (ADR 068)."""
     if cmd.origin == "claude" and send_venue != "paper":
         return f"Claude trades Paper only, and the desk is on {send_venue} -- nothing was sent"
+    if cmd.origin == "brain" and send_venue != "paper":
+        return f"The brain trades Paper only for now, and the desk is on {send_venue} -- nothing was sent"
     if cmd.origin == "close_bots" and send_venue != "paper":
         # ADR 069: the bots' shares are Paper's; a desk that moved mid-send never sells another account's, and never
         # cancels its order of the same number.

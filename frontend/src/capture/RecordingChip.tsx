@@ -13,11 +13,9 @@
 import { Disc } from 'lucide-react';
 import { Tooltip } from 'radix-ui';
 import { useEffect, useState, useSyncExternalStore } from 'react';
-import { BOT_SETUP_LABELS } from '../constantGroups/bot';
 import { getIbkrStatusSnapshot } from '../ibkr';
 import { laneRecording, type LaneRecording } from '../ibkr';
 import {
-  AUTO_RECORD_WHY_WORDS,
   LANE_OWNER_WORDS,
   LANE_RECORD_CHIP_LINE,
   captureStopHoldLabel,
@@ -43,13 +41,13 @@ interface Props {
   variant?: 'compact' | 'bar';
 }
 
-/** "the bots' lane · 5-minute flat top · near its trigger" for a stock a lane records; null when none does. */
+/**
+ * "the brain's lane · holding the 4.30 bid" for a stock a lane records -- whose lane, and the brain's own words for
+ * naming it, as it wrote them; null when no lane records it.
+ */
 function autoWhyLine(rec: LaneRecording, symbol: string): string | null {
   const owners = (rec.owners[symbol] ?? []).map(o => LANE_OWNER_WORDS[o]);
-  const setup = rec.setup[symbol];
-  const why = rec.why[symbol];
-  const parts = [owners.join(' + ') || null, setup ? BOT_SETUP_LABELS[setup] ?? setup : null,
-    why ? AUTO_RECORD_WHY_WORDS[why] ?? why : null];
+  const parts = [owners.join(' + ') || null, rec.why[symbol] ?? null];
   return parts.filter(Boolean).join(' · ') || null;
 }
 

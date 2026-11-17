@@ -745,7 +745,7 @@ line back when the operator opened Level 2 elsewhere (ADR 023, ADR 041). On 2026
 ET on stocks whose setups had ended. Now only three lanes hold lines -- yours, Claude's seat's, the bots' -- and
 recording follows them (`market-data.md` "Three lanes", `recording-and-replay.md` "Recording follows the lanes").
 The setup picker (`trade` before `near` before `armed`, a short only at On, never a watch-only setup) moves to the
-bots' lane (`line_lanes/bots.py`), narrowed to the setups a bot may buy. Its restart file `auto-record.json` is no
+bots' lane, narrowed to the setups a bot may buy; that lane is the brain's now and the picker is gone (ADR 072). Its restart file `auto-record.json` is no
 longer read; segments it ended keep `reason: "auto"`.
 
 **The recording switch** (operator ask 2026-10-14: "i need a way to turn off the recording"; owner

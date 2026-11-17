@@ -60,16 +60,19 @@
    no spread"). The stock read above it grows with the plan, and Level 2 took what was left: a long plan on a
    1440 px desk left the pane 211 px, under the 260 px where the bands hide and the rows sit at their 18 px
    floor. The book now keeps --sv-depth-min (the pane's 260 px plus its head), or half the card on a short
-   one, and the read scrolls past that (stockRead.css). Claude's frame is the card's child while it is on. */
+   one, and the read scrolls past that (stockRead.css). Claude's frame is the card's child while it is on, and
+   the brain's twin (ADR 072) while that one is. */
 .stock-view-page .sv-rail .sv-quote-depth-card .sv-depth-and-tape {
   min-height: min(var(--sv-depth-min), 50%);
 }
 
-.stock-view-page .sv-rail .sv-quote-depth-card .claude-line-frame:not(.claude-line-frame--off) {
+.stock-view-page .sv-rail .sv-quote-depth-card .claude-line-frame:not(.claude-line-frame--off),
+.stock-view-page .sv-rail .sv-quote-depth-card .brain-line-frame:not(.brain-line-frame--off) {
   min-height: min(calc(var(--sv-depth-min) + 13px), 50%);
 }
 
-.stock-view-page .sv-rail .sv-quote-depth-card .claude-line-frame:not(.claude-line-frame--off) .sv-depth-and-tape {
+.stock-view-page .sv-rail .sv-quote-depth-card .claude-line-frame:not(.claude-line-frame--off) .sv-depth-and-tape,
+.stock-view-page .sv-rail .sv-quote-depth-card .brain-line-frame:not(.brain-line-frame--off) .sv-depth-and-tape {
   min-height: 0;
 }
 

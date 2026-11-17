@@ -34,11 +34,11 @@ export const RECORDS_RESUMED_AFTER: Record<string, string> = {
 };
 export const RECORDS_FREE_SLOT = 'free slot';
 export const RECORDS_FREE_AUTO_ON =
-  'A lane may use it: Nova records a stock while you, Claude or a bot watches it on a lane.';
+  'A lane may use it: Nova records a stock while you, Claude or the brain watches it on a lane.';
 export const RECORDS_FREE_AUTO_OFF = 'Recording is off, so only a Record you start uses it.';
 export const RECORDS_STOP_FAILED = 'Stop did not go through:';
 export const RECORDS_NOTHING_AUTO_ON =
-  'Nothing is recording. Nova records a stock while a lane watches it -- yours, Claude\'s or the bots\' -- and you can record a stock on a lane yourself.';
+  'Nothing is recording. Nova records a stock while a lane watches it -- yours, Claude\'s or the brain\'s -- and you can record a stock on a lane yourself.';
 export const recordsNothingAutoOff = (mode: AutoRecordMode, until: string | null): string =>
   mode === 'off_today'
     ? `Recording is off for today and records nothing a lane watches. It comes back on at ${until ?? '04:00 ET'}.`

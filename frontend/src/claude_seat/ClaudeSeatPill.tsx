@@ -53,7 +53,8 @@ export function ClaudeSeatPill() {
               data-testid="claude-pill-open"
               aria-expanded={open}
               aria-haspopup="dialog"
-              title={error ? `Claude's seat: ${error}` : undefined}
+              title={error ? `Claude's seat: ${error}` : pill.text}
+              aria-label={pill.text}
               onClick={() => setOpen(v => !v)}
             >
               <ClaudeMark tone={tone} />

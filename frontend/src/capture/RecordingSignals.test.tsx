@@ -194,12 +194,12 @@ describe('RecordingChip', () => {
     await mount(<RecordingChip variant="bar" onOpenRecords={records} />);
     const empty = { symbol: null, since: null, depth: false, tape: false, recording: false, error: null };
     await poll({ ...recording, lanes: {
-      schema_version: 1, you: empty, claude: empty, recording_error: null,
-      bots: { ...empty, symbol: 'GRML', depth: true, tape: true, recording: true, setup: 'flat_top_5m', why: 'near', waiting: [] },
+      schema_version: 2, you: empty, claude: empty, recording_error: null,
+      brain: { ...empty, symbol: 'GRML', depth: true, tape: true, recording: true, why: '5-minute flat top, 3 touches' },
     } });
     const card = await openCard(screen.getByTestId('status-chip-recording'));
     expect(card).toContain("lane -- recorded while a lane watches it");
-    expect(card).toContain("the bots' lane · 5-minute flat top · near its trigger");
+    expect(card).toContain("the brain's lane · 5-minute flat top, 3 touches");
     const stop = document.body.querySelector('[data-testid="status-chip-recording-stop"]') as HTMLElement;
     command.mockResolvedValue(response({ capture: false, capture_symbols: [] }));
     fireEvent.pointerDown(stop, { button: 0 });

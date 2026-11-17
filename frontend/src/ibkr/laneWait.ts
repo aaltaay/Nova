@@ -7,7 +7,7 @@
  * end each other's lines. It asks again when
  * - the operator brings it to the front (its tab shown, its document made visible) or clicks its words
  *   (LANE_BRING_EVENT): the socket opens with `front=1` and moves your lane here;
- * - the shared lanes poll finds a lane on its stock (Claude's or the bots' came to it): the socket opens with
+ * - the shared lanes poll finds a lane on its stock (Claude's or the brain's came to it): the socket opens with
  *   `front=0`, so your lane stays where it is.
  * The words stay up until that socket answers; one that closes unanswered hands over to the backoff.
  * useIbkrDepth and useIbkrTape each keep one, so a Trader tab's Level 2 and Time & Sales come back together.
@@ -149,7 +149,7 @@ export class LaneWait {
         this.waitingNow = words(this.pane, this.symbol, view.you.symbol);
         this.hooks.changed();
       },
-      // Claude's or the bots' lane came to this stock: its lines are up, and your lane stays where it is.
+      // Claude's or the brain's lane came to this stock: its lines are up, and your lane stays where it is.
       arrived: () => this.ask(false),
     });
   }

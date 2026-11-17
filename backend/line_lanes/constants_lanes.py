@@ -4,12 +4,11 @@ Nothing here places, stages or cancels an order: a lane holds one IBKR Level 2 l
 """
 from __future__ import annotations
 
-LANES_SCHEMA_VERSION = 1
+LANES_SCHEMA_VERSION = 2   # 2: lane 3 is the brain's (`brain`, with `why`); 1 carried it as `bots` (ADR 072)
 
-# How often the bots' lane is chosen again and every lane's lines are asked for again when they are down. A tick
-# reads memory only (the setup scanner, the bot session, the focus sensor) and asks IBKR only for a lane's line
-# that is not up.
-LANES_BOTS_TICK_SEC = 15.0
+# How often every lane's lines are asked for again when they are down, and the lanes' recording is brought up to
+# date. A tick reads memory only and asks IBKR only for a lane's line that is not up.
+LANES_TICK_SEC = 15.0
 
 # Your lane's stock is recorded while you watch it, and this long after (operator, 2026-11-13: "A Trader tab I can
 # see" -- it stops 5 minutes after you leave it, so flipping tabs does not cut it into pieces).
@@ -27,21 +26,6 @@ LANES_TAPE_HEAL_CONFIRM_SEC = 2.0
 LANES_TAPE_HEAL_POLL_SEC = 1.0
 # IBKR's tick-by-tick cap: a refusal with this code is said as the cap.
 LANES_TAPE_CAP_CODES = frozenset({10190})
-
-# Why the bots' lane is on a setup, best first: the trade's tape is what the exit trials read; the tape at the
-# trigger is what the entry trials and the tape gate read (ADR 041).
-WHY_TRADE = "trade"
-WHY_NEAR = "near"
-WHY_ARMED = "armed"
-WHY_ORDER = (WHY_TRADE, WHY_NEAR, WHY_ARMED)
-WHY_WORDS = {WHY_TRADE: "in a trade", WHY_NEAR: "near its trigger", WHY_ARMED: "armed"}
-
-# The setups' names in the sentences (stock_read/plan.py's words).
-SETUP_WORDS = {"first_pullback": "first pullback", "bull_flag": "bull flag",
-               "flat_top_breakout": "flat-top breakout", "flat_top_5m": "5-minute flat top",
-               "red_to_green": "red to green", "gap_and_go": "Gap and Go", "pullback_dip": "pullback dip", "abcd": "ABCD"}
-
-
 
 # The words a socket or a request reads when no lane is on its stock.
 NO_LANE_WORDS = "No lane is on {symbol}: open it in front to bring your Level 2 here."

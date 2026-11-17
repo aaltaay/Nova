@@ -259,7 +259,7 @@ async def _attempt(symbol: str, *, now: float, ready, acquire, start, release, r
         return
     if not _lane_holds(symbol):
         # ADR 071: only a lane holds a stock's lines; the lanes' recording starts it again when a lane is on it.
-        _give_up(resume, f"no lane is on {symbol}: Nova records it again once you, Claude or a bot watch it")
+        _give_up(resume, f"no lane is on {symbol}: Nova records it again once you, Claude or the brain watch it")
         return
     if not ready():
         # IBKR is not usable; that is not the recorder's fault, so it costs no

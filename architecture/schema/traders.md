@@ -8,10 +8,11 @@ commit as the code (Invariants #1 and #5).
 
 **Built batch by batch** (ADR 072 "Build order"). Batch 3 ("Books, rules and the switches") is built: the owners, a
 trader's stock, the rules at the door, the handover, each AI trader's budget, the switches, `GET /api/traders` and
-`PUT /api/traders/{trader}/switch` (`recording-and-replay.md` "Three traders' books" is the wire it changed). Still to
-come (batch 4): `PUT /api/traders/{trader}/limits` and Settings' column per trader (`trader-limits.json` is read
-now, with its defaults), each AI trader's own loss line (`loss-limit.md` "Four lines"; until then Claude's, the
-brain's and Earlier bots' fills count on the Bots line), and the brain's own door.
+`PUT /api/traders/{trader}/switch` (`recording-and-replay.md` "Three traders' books" is the wire it changed). The brain's door, its lane and its header pill are built too (`bot.md` "The brain's door", ADR 072 build
+order 5, on Paper). Still to come (build order 4): `PUT /api/traders/{trader}/limits` and Settings' column per trader
+(`trader-limits.json` is read now, with its defaults), and each AI trader's own loss line (`loss-limit.md` "Four
+lines"; until then Claude's, the brain's and Earlier bots' fills count on the Bots line, and the brain's day stop is
+`BRAIN_DAY_STOP_USD`).
 
 **The owners.** `owner` is one of `you`, `claude`, `brain` or `earlier_bots`, on Paper and Sim; on Live every row is
 `you`. `bot` is set only on `earlier_bots` rows and names the retired holder: `bot` (the strategy bot), `auto_entry`,
@@ -76,7 +77,7 @@ a handed position (`OWNERS_TRADERS_STOCK`). A retired bot's shares still open at
   `error` saying why for the last two). The 04:00 ET rollover writes every switch Off. A restart within the day reads
   the file back, so a restart never hands a trade over by itself.
 - **On** is refused `409` with `{reason, error}`: `TRADER_LIVE` (the desk is on Live), `TRADER_DAY_STOP` (the
-  trader's loss line tripped today, decision 8), `TRADER_PAST_FLAT_BY` (at or after its flat-by time),
+  trader's day stop was reached today, decision 8), `TRADER_PAST_FLAT_BY` (at or after its flat-by time),
   `TRADER_OPERATOR_ONLY` (a request carrying `X-Agent-Seat`, or the brain's session key), `REMOTE_VIEW_ONLY` (the
   phone, ADR 070).
 - **Off** is never refused (`traders.off`). It writes the file first, hands every position the trader holds on
@@ -104,9 +105,11 @@ defaults with `error`; the next save writes a fresh file. A trader's daily loss 
   {pnl, loss_limit_usd, tripped_at}, limits: {max_shares, risk_usd, budget_usd, budget_used_usd, flat_by}, note:
   {text, at} | null}`. `state` is one of `off`, `watching`, `buy_set`, `in_trade`, `done`; `text` is the pill's words
   ("Brain · In XLAB +$42.00", "Brain · Off · XLAB is yours to close", "Brain · Done for today -$500"). Claude's
-  `state`, `symbol`, `lane` and `note` are the seat's (`agent-trader.md`); until the brain's door lands (batch 4) the
-  brain reads `off`, `watching` or `in_trade` from its book. `position` and `handed` are the desk venue's account
-  (Paper while the desk is on Live); `today.loss_limit_usd` is Claude's day stop until the loss lines land.
+  `state`, `symbol`, `lane` and `note` are the seat's (`agent-trader.md`); the brain's are its door's (`bot.md`): `symbol` and `lane` from lane 3 (`lane.why` its
+  words for naming the stock), `note` its last note, `state` `off`, `watching`, `buy_set`, `in_trade` or `done`, and
+  three fields only the brain has: `connected` (its program's heartbeat is fresh), `reading: [{symbol, text, source:
+  "lane" | "level1"}]` and `events` (`bot.md`). On and not connected reads "Brain · On · its program is not running". `position` and `handed` are the desk venue's account
+  (Paper while the desk is on Live); `today.loss_limit_usd` is each trader's own day stop in code until the loss lines land.
 - `PUT /api/traders/{trader}/switch {on: boolean}` -> the `GET` shape, or the refusal above. `404 TRADER_UNKNOWN`
   for another name.
 - `PUT /api/traders/{trader}/limits {max_shares?, risk_usd?, budget_usd?, flat_by?}` -> the `GET` shape. `400

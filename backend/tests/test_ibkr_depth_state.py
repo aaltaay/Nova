@@ -37,7 +37,7 @@ def test_control_frames_come_before_the_book_and_none_is_lost():
     q = state.open_viewer_queue("XYZ")
     state.push_book("XYZ", {"bids": [{"price": 2.0}], "asks": [], "l1_fallback": False})
     state.push_error("XYZ", "line dropped")
-    state.push_lane("XYZ", "Your Level 2 moved to AAA.", {"you": "AAA", "claude": None, "bots": None})
+    state.push_lane("XYZ", "Your Level 2 moved to AAA.", {"you": "AAA", "claude": None, "brain": None})
 
     assert q.get_nowait()["type"] == "error"
     lane = q.get_nowait()

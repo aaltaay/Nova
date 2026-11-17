@@ -390,12 +390,12 @@ stocks whose setups had ended (DGXX, SSII, MRLN): "I need the level 2 lane to al
 recordings are hurting me more than helping me".
 
 - **Owner:** `backend/line_lanes/` -- `table.py` (pure: which stock each lane is on, and which lines a change ends
-  and opens), `lanes.py` (the only code that opens or ends a live Level 2 or AllLast line), `yours.py`,
-  `claude.py`, `bots.py` (what moves each lane), `recording.py` (below), `view.py` (on the wire). Memory only: after
-  a restart the first socket in front names your lane, the seat names Claude's, and the bots' next pick (within
-  `LANES_BOTS_TICK_SEC`, 15 s) names theirs.
+  and opens), `lanes.py` (the only code that opens or ends a live Level 2 or AllLast line), `yours.py` and
+  `brain.py` (what moves your lane and the brain's; Claude's is moved by `agent_trader/lines.py`), `recording.py`
+  (below), `view.py` (on the wire). Memory only: after a restart the first socket in front names your lane, the seat
+  names Claude's, and the brain's program names its own again.
 - **A lane is one Level 2 line and one AllLast line on one stock.** Three lanes, three owners: `you`, `claude`,
-  `bots`. No owner takes, borrows or is lent another's lane, and an empty lane stays empty. A stock two lanes are on
+  `brain`. No owner takes, borrows or is lent another's lane, and an empty lane stays empty. A stock two lanes are on
   is one pair of lines; it ends only when the last lane leaves it.
 - **Only a lane opens a live line.** `ibkr.depth.subscribe_async` and `ibkr.tape_stream.subscribe_async` open a live
   line only for a stock a lane is on; any other request is refused with `{ok: false, lane: true, error: <words>}`
@@ -407,17 +407,10 @@ recordings are hurting me more than helping me".
   link leave both lines up. It moves only when you open another stock in front, and then at once.
 - **Claude's lane** is on the stock the seat names (ADR 068 decision 2) and empty otherwise, whether the seat is on
   or off. No one else uses it.
-- **The bots' lane becomes the brain's (ADR 072; confirmed for the build).** Owner `brain` replaces `bots`; the lane
-  is on the one stock the brain names (`{symbol, why}`) and empty until it names one; no other owner uses it, with
-  no rate limit and no minimum hold. The setup picker below (`bots.py`, `bots_pick.py`, `LANES_BOTS_TICK_SEC`) goes
-  with that batch. Until then:
-- **The bots' lane** is on one setup at a time, chosen every `LANES_BOTS_TICK_SEC` among the setups of the
-  templates in play that a bot may buy now (operator, 2026-11-13: "only what a bot may buy"): the strategy at
-  effective On on the desk's venue, the venue's bot active, Nova may buy there (never Live, never a replay desk),
-  and the stock's Buy is Nova. A setup in a trade first (its scoring window, or a Nova trade held on the stock),
-  then near its trigger, then armed; a watch-only setup (#847) and a short at Eyes or Off never qualify. The stock
-  on the lane keeps it while it qualifies; a better tier takes it from an armed or near one, never from one in a
-  trade. With none, the lane is empty. A setup with no lane reads `blind` on its row, as before.
+- **The brain's lane** (ADR 072 decision 10; owner `brain`, formerly `bots`) is on the one stock the brain names
+  (`POST /api/brain/watch {symbol, why}`, `bot.md` "The brain's door") and empty until it names one, whether its
+  switch is On or Off. No one else uses it; there is no rate limit and no minimum hold. The bots' setup picker
+  (`bots.py`, `bots_pick.py`, `LANES_BOTS_TICK_SEC`) is gone.
 - **A line ends only when no lane is on its stock**, at once: no linger, no grace. Every socket still on it gets one
   frame and is closed: depth `{type: "error", symbol, message, evicted: true, lane: Lanes}`, tape
   `{type: "lane", symbol, message, lane: Lanes}`. A socket opened with `front=0` on a stock no lane is on gets the
@@ -429,13 +422,13 @@ recordings are hurting me more than helping me".
   never by itself from the front.
 - **IBKR's 15 seconds:** a tape Nova cancelled may not be asked for again for `IBKR_TAPE_RESUBSCRIBE_GUARD_SEC` (16 s)
   after the cancel, unchanged until decision 10's measurement.
-- **On the wire.** `GET /api/ibkr/lanes` and `/api/ibkr/status` `lanes`: `{schema_version: 1, you: Lane, claude:
-  Lane, bots: Lane & {setup: string | null, why: "trade" | "near" | "armed" | null, waiting: [{symbol, setup,
-  why}], error: string | null}, tape_capacity}` where `Lane = {symbol: string | null, since: number | null, depth:
-  boolean, tape: boolean, recording: boolean}` (`depth` / `tape`: the line is up; `recording`: Nova records it,
-  `recording-and-replay.md`; `waiting`: the setups that qualify and are not on the lane, best first; `error`: the
-  setup scanner, the bot session or the venue could not be read -- the lane then stays where it is, never a
-  guess). `tape_capacity` is the shared tape admission below (formerly `auto_record.tape_capacity`).
+- **On the wire.** `GET /api/ibkr/lanes` and `/api/ibkr/status` `lanes`: `{schema_version: 2, you: Lane, claude:
+  Lane, brain: Lane & {why: string | null}, tape_capacity}` where `Lane = {symbol: string | null, since: number |
+  null, depth: boolean, tape: boolean, recording: boolean, error: string | null}` (`depth` / `tape`: the line is up;
+  `recording`: Nova records it, `recording-and-replay.md`; `why`: the brain's own words for naming the stock).
+  Version 1 carried the lane as `bots` with the setup picker's fields. `GET /api/ibkr/capacity` names a line's
+  holders `you`, `claude` and `brain`. `tape_capacity` is the shared tape admission below (formerly
+  `auto_record.tape_capacity`).
 - **Replaced:** auto-record's lines, line lending (`line_lending/`, `GET /api/ibkr/depth/lines`,
   `PATCH /api/ibkr/depth/lending`), Claude's take-back and its borrowing of an auto-record or a tab line
   (`agent_trader/room.py`, `tab_line.py`, `POST /api/agent/trader/take-back`), a resting Paper order's tape line

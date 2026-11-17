@@ -1,6 +1,6 @@
 """Nova records what a lane watches, and nothing else (ADR 071 decision 8; amendment 2026-11-13).
 
-The bots' and Claude's lane stocks are recorded while on their lane; your lane's stock while a Trader tab you can see
+The brain's and Claude's lane stocks are recorded while on their lane; your lane's stock while a Trader tab you can see
 shows it, and five minutes after. A recording holds no line: Record by hand needs a lane on the stock, the keepalive
 resumes only what a lane holds, and a resting Paper order keeps only a Level 1 line.
 """
@@ -54,9 +54,9 @@ def _sync(at: float) -> None:
     asyncio.run(recording.sync(at))
 
 
-def test_the_bots_and_claudes_stocks_record_while_on_their_lane_and_stop_when_they_leave(rec):
+def test_the_brains_and_claudes_stocks_record_while_on_their_lane_and_stop_when_they_leave(rec):
     calls, _seen = rec
-    lanes._lanes = Lanes(you="XLAB", claude="RUNR", bots="AISP")
+    lanes._lanes = Lanes(you="XLAB", claude="RUNR", brain="AISP")
     _sync(NOW)
     assert sorted(calls["started"]) == ["AISP", "RUNR"]            # XLAB: no tab you can see shows it
     lanes._lanes = Lanes(you="XLAB", claude="RUNR")
@@ -101,7 +101,7 @@ def test_with_no_desk_window_a_tab_socket_opened_in_front_counts(rec):
 
 def test_switched_off_the_lanes_record_nothing(rec):
     calls, _seen = rec
-    lanes._lanes = Lanes(bots="AISP")
+    lanes._lanes = Lanes(brain="AISP")
     _sync(NOW)
     calls["on"] = False
     _sync(NOW + 15)
@@ -114,7 +114,7 @@ def test_switched_off_the_lanes_record_nothing(rec):
 
 def test_turning_the_switch_off_stops_only_the_lanes_recordings(rec):
     calls, _seen = rec
-    lanes._lanes = Lanes(bots="AISP", claude="RUNR")
+    lanes._lanes = Lanes(brain="AISP", claude="RUNR")
     calls["recording"] = ["RUNR"]
     recording.operator_took("RUNR")                       # you pressed Record on RUNR yourself
     _sync(NOW)
@@ -125,7 +125,7 @@ def test_turning_the_switch_off_stops_only_the_lanes_recordings(rec):
 
 def test_a_stock_you_stopped_by_hand_is_not_started_again_that_day(rec):
     calls, _seen = rec
-    lanes._lanes = Lanes(bots="AISP")
+    lanes._lanes = Lanes(brain="AISP")
     recording.operator_stopped("AISP", now=NOW)
     _sync(NOW + 60)
     assert calls["started"] == []
@@ -151,7 +151,7 @@ def test_a_start_that_fails_says_why_and_is_tried_again_a_minute_later(rec, monk
 
     monkeypatch.setattr(feed_hold, "acquire", acquire)
     monkeypatch.setattr(recording, "_start", REAL_START)
-    lanes._lanes = Lanes(bots="AISP")
+    lanes._lanes = Lanes(brain="AISP")
     _sync(NOW)
     _sync(NOW + LANES_RECORD_RETRY_SEC - 1)
     assert asked == ["AISP"]
@@ -180,18 +180,18 @@ def test_the_lanes_route_says_who_holds_each_line(monkeypatch):
     from capture import mode
     from line_lanes import routes
 
-    lanes._lanes = Lanes(you="XLAB", bots="AISP")
+    lanes._lanes = Lanes(you="XLAB", brain="AISP")
     monkeypatch.setattr(lanes, "lines_up", lambda s: {lanes.DEPTH: s == "XLAB", lanes.TAPE: s == "XLAB"})
     monkeypatch.setattr(mode, "capture_symbols", lambda: ["XLAB"])
     app = FastAPI()
     app.include_router(routes.router, prefix="/api/ibkr")
     got = TestClient(app).get("/api/ibkr/lanes").json()
-    assert got["schema_version"] == 1
+    assert got["schema_version"] == 2
     assert {k: got["you"][k] for k in ("symbol", "depth", "tape", "recording")} == {
         "symbol": "XLAB", "depth": True, "tape": True, "recording": True}
     assert got["claude"]["symbol"] is None and got["claude"]["recording"] is False
-    assert got["bots"]["symbol"] == "AISP" and got["bots"]["depth"] is False and got["bots"]["recording"] is False
-    assert {"setup", "why", "waiting", "error"} <= set(got["bots"])
+    assert got["brain"]["symbol"] == "AISP" and got["brain"]["depth"] is False and got["brain"]["recording"] is False
+    assert {"why", "error"} <= set(got["brain"]) and "bots" not in got
 
 
 def test_record_by_hand_refuses_a_stock_no_lane_is_on(monkeypatch):
@@ -231,7 +231,7 @@ def test_the_keepalive_gives_up_a_resume_no_lane_holds_and_says_why():
         asyncio.run(keepalive._attempt("RUNR", now=NOW + 1, ready=lambda: True, acquire=never, start=never,
                                        release=never, recording=[]))
         assert resume["gave_up"] is True
-        assert resume["gave_up_reason"] == ("no lane is on RUNR: Nova records it again once you, Claude or a bot "
+        assert resume["gave_up_reason"] == ("no lane is on RUNR: Nova records it again once you, Claude or the brain "
                                             "watch it")
     finally:
         keepalive.reset_for_tests()
@@ -315,9 +315,9 @@ def test_a_tape_pane_whose_stock_left_every_lane_is_told_where_your_lane_is():
 
     q = tape_stream.open_viewer_queue("XLAB")
     try:
-        tape_stream.push_lane("xlab", "Your Level 2 moved to TGHL.", {"you": "TGHL", "claude": None, "bots": None})
+        tape_stream.push_lane("xlab", "Your Level 2 moved to TGHL.", {"you": "TGHL", "claude": None, "brain": None})
         frames = q.drain_nowait()
     finally:
         tape_stream.close_viewer_queue("XLAB", q)
     assert frames == [{"type": "lane", "symbol": "XLAB", "message": "Your Level 2 moved to TGHL.",
-                       "lane": {"you": "TGHL", "claude": None, "bots": None}}]
+                       "lane": {"you": "TGHL", "claude": None, "brain": None}}]

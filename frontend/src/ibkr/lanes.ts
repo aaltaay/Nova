@@ -2,17 +2,19 @@
  * The three lanes on the wire (ADR 071): `GET /api/ibkr/lanes` and `/api/ibkr/status` `lanes` / `recording_switch`.
  *
  * A lane is one Level 2 line and one Time & Sales line on one stock; the owners are you, Claude's seat and the
- * bots. A pane on a stock no lane is on waits for one (laneWait.ts) and asks this view when one came. Records,
- * the REC chips and the Bots page read who records what from the same view. Read at the boundary: a malformed
- * lane is an empty one, an unknown field is dropped, and nothing is invented.
+ * brain (ADR 072 decision 10: the brain names lane 3's stock; the bots' setup picker is gone). A pane on a stock no
+ * lane is on waits for one (laneWait.ts) and asks this view when one came. Records and the REC chips read who
+ * records what from the same view. Read at the boundary: a malformed lane is an empty one, an unknown field is
+ * dropped, and nothing is invented. Version 1 of the view carried lane 3 as `bots` with the picker's fields: an
+ * older backend's answer still parses, and the brain's lane reads empty.
  */
 import { novaFetch } from '../api/novaFetch';
 import { API_BASE_URL } from '../constantGroups/chart_api';
 import { LANES_PATH } from '../constantGroups/market_ui';
 import type { AutoRecordSwitch } from './types';
 
-export type LaneOwner = 'you' | 'claude' | 'bots';
-export const LANE_OWNERS: readonly LaneOwner[] = ['you', 'claude', 'bots'];
+export type LaneOwner = 'you' | 'claude' | 'brain';
+export const LANE_OWNERS: readonly LaneOwner[] = ['you', 'claude', 'brain'];
 
 export interface Lane {
   symbol: string | null;
@@ -23,30 +25,20 @@ export interface Lane {
   tape: boolean;
   /** Nova records the lane's stock now. */
   recording: boolean;
-  /** Why a line of the lane's stock did not open, or why the bots' lane could not be chosen. */
+  /** Why a line of the lane's stock did not open. */
   error: string | null;
 }
 
-/** A setup a bot may buy: the one on the bots' lane, or one waiting for it. */
-export interface BotsLaneSetup {
-  symbol: string;
-  setup: string | null;
-  /** trade | near | armed. */
+/** The brain's lane (lane 3): the one stock the brain named, and its own words for naming it. */
+export interface BrainLane extends Lane {
   why: string | null;
-}
-
-export interface BotsLane extends Lane {
-  setup: string | null;
-  why: string | null;
-  /** The setups that qualify and are not on the lane, best first. */
-  waiting: BotsLaneSetup[];
 }
 
 export interface LanesView {
   schema_version: number;
   you: Lane;
   claude: Lane;
-  bots: BotsLane;
+  brain: BrainLane;
   /** The lanes' recording could not start or stop a recording, and why. */
   recording_error: string | null;
 }
@@ -66,20 +58,16 @@ function lane(v: unknown): Lane {
   };
 }
 
-function botsLane(v: unknown): BotsLane {
+function brainLane(v: unknown): BrainLane {
   const r = isObject(v) ? v : {};
-  const waiting = Array.isArray(r.waiting) ? r.waiting.flatMap((w): BotsLaneSetup[] => {
-    const s = isObject(w) ? sym(w.symbol) : null;
-    return s && isObject(w) ? [{ symbol: s, setup: str(w.setup), why: str(w.why) }] : [];
-  }) : [];
-  return { ...lane(r), setup: str(r.setup), why: str(r.why), waiting };
+  return { ...lane(r), why: str(r.why) };
 }
 
 /** The lanes as the desk reads them; null when the answer is not the lanes view. */
 export function parseLanes(raw: unknown): LanesView | null {
   if (!isObject(raw) || typeof raw.schema_version !== 'number') return null;
   return {
-    schema_version: raw.schema_version, you: lane(raw.you), claude: lane(raw.claude), bots: botsLane(raw.bots),
+    schema_version: raw.schema_version, you: lane(raw.you), claude: lane(raw.claude), brain: brainLane(raw.brain),
     recording_error: str(raw.recording_error),
   };
 }
@@ -103,19 +91,19 @@ export function lanesOn(view: LanesView | null | undefined, symbol: string): Lan
   return LANE_OWNERS.filter(o => view[o].symbol === s);
 }
 
-/** Who Nova records for: each recorded stock, the lanes on it, and the bots' setup and why. */
+/** Who Nova records for: each recorded stock, the lanes on it, and the brain's own words for naming its stock. */
 export interface LaneRecording {
   switch: AutoRecordSwitch | null;
   /** The stocks a lane records now, in lane order (yours first). */
   symbols: string[];
   owners: Record<string, LaneOwner[]>;
-  setup: Record<string, string>;
+  /** The brain's words for the stock its lane records, as it wrote them; none for any other stock. */
   why: Record<string, string>;
   error: string | null;
 }
 
 export function laneRecording(lanes: LanesView | null | undefined, sw: AutoRecordSwitch | null | undefined): LaneRecording {
-  const out: LaneRecording = { switch: sw ?? null, symbols: [], owners: {}, setup: {}, why: {}, error: null };
+  const out: LaneRecording = { switch: sw ?? null, symbols: [], owners: {}, why: {}, error: null };
   if (!lanes) return out;
   out.error = lanes.recording_error;
   for (const owner of LANE_OWNERS) {
@@ -124,11 +112,8 @@ export function laneRecording(lanes: LanesView | null | undefined, sw: AutoRecor
     if (!out.owners[l.symbol]) out.symbols.push(l.symbol);
     out.owners[l.symbol] = [...(out.owners[l.symbol] ?? []), owner];
   }
-  const bots = lanes.bots;
-  if (bots.symbol && out.owners[bots.symbol]) {
-    if (bots.setup) out.setup[bots.symbol] = bots.setup;
-    if (bots.why) out.why[bots.symbol] = bots.why;
-  }
+  const brain = lanes.brain;
+  if (brain.symbol && brain.recording && brain.why) out.why[brain.symbol] = brain.why;
   return out;
 }
 

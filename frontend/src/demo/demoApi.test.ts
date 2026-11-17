@@ -2,6 +2,9 @@
  * The demo's backend (ADR 043): what it answers, what it refuses, and the venue it keeps.
  */
 import { afterEach, describe, expect, it } from 'vitest';
+import { readBrainSeat } from '../brain_seat/brainSeatApi';
+import { brainPillText, brainPillWords } from '../brain_seat/brainWords';
+import { parseLanes } from '../ibkr';
 import { DEMO_REFUSAL, answer, demoVenue, resetDemoState, type DemoResponse } from './demoApi';
 import { NOW_S } from './data/market';
 
@@ -44,6 +47,18 @@ describe('demo backend reads', () => {
     const status = bodyOf<{ configured: boolean; health: unknown }>(get('/api/ahead/status'));
     expect(status.configured).toBe(false);
     expect(status.health).toBeNull();
+  });
+
+  it('answers the traders view with the brain Off, in the shape the header reads (ADR 072)', () => {
+    const view = readBrainSeat(get('/api/traders')?.body);
+    expect(view).toMatchObject({ venue: 'paper', on: false, state: 'off', position: null, handed: [], reading: [] });
+    expect(brainPillText(brainPillWords(view!))).toBe('Brain · Off');
+  });
+
+  it('names lane 3 the brain\'s on the lanes view', () => {
+    const lanes = parseLanes(get('/api/ibkr/lanes')?.body);
+    expect(lanes).toMatchObject({ schema_version: 2, you: { symbol: 'SMPL' }, brain: { symbol: null, why: null } });
+    expect(get('/api/ibkr/lanes')?.body).not.toHaveProperty('bots');
   });
 
   it('has no retired readiness-proof endpoint', () => {

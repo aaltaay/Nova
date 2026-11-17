@@ -1,6 +1,6 @@
 # ADR 072 -- Three traders: you, Claude, the brain
 
-**Status:** Accepted (the design; the build follows in the batches below -- batches 2 and 3 built) · **Date:** 2026-11-13
+**Status:** Accepted (the design; the build follows in the batches below -- batches 2, 3 and 5 built; amendment 1) · **Date:** 2026-11-13
 **Replaces:** [[069-your-book-and-the-bots-book]] decisions 1-5 and 9's bots' rows (two books become three; the bots'
 budget and Close on a bots' row go) · [[055-the-live-trader-bot]] (retired) · [[044-one-bots-page]] decisions 1-2 and 5-6
 and its 2026-10-15 amendments (the Bot switch, the family keys, a strategy's On, the squares, the Bots page) ·
@@ -211,6 +211,23 @@ a control that does nothing or reads wrong.
 4. **Limits and loss lines in Settings:** decisions 7-8, the four lines, one column per trader, Claude's code limits
    moved into the setting.
 5. **The brain:** decision 10, lane 3 and the door stamped `brain`, the brain's pill and panel.
+
+## Amendment 1 (2026-11-17): the brain's door is its own, on Paper first
+
+The operator, 2026-11-17, on the first trained brain: "deploy it on paper trading please! i want it to be fully
+automated", then "I also don't see the 'Brain' on the header, we need that for easy enable/disable.. and i dont see
+it on level 2 working yet." Build order 5 is built ahead of 4, with three changes to decision 10:
+
+- **The door is `/api/brain/*`, not `POST /api/bot/action`.** The bot API's kinds were the bots' hotkeys (a market
+  buy sized by a sleeve, a percent of the position), gated by lists, levels and an Activate that all retired. The
+  brain needs what Claude's seat has: a limit entry with its stop inside the trader's limits, a stop move, a close.
+  `/api/bot/action` stays closed; `bot.md` "The brain's door" holds the routes.
+- **Paper first.** The door refuses off Paper (`BRAIN_NOT_PAPER`). Sim needs the replay clock in the day stop and
+  flat by; it follows.
+- **The day stop is a code constant until build order 4** (`BRAIN_DAY_STOP_USD`, -$500, as Claude's is), read on the
+  brain's own book. Its limits come from `trader-limits.json`'s defaults until Settings writes them.
+
+Unchanged: the switch is the operator's alone and reads Off every morning at 04:00 ET; the brain never trades Live.
 
 ## Consequences
 

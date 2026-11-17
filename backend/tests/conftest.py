@@ -180,11 +180,15 @@ def _reset_lanes():
     # The three lanes (ADR 071) live for the process; each test starts with them empty. The lanes' gate is open by
     # default here, so a test that drives a line without putting a lane on its stock keeps working; the lanes' own
     # tests (test_line_lanes_*.py) close it with ``lanes.enforce(True)``.
-    from line_lanes import bots, lanes, recording, sockets
+    from brain import session as brain_session
+    from brain import watcher as brain_watcher
+    from line_lanes import brain, lanes, recording, sockets
 
     def reset() -> None:
         lanes.reset_for_tests()
-        bots.reset_for_tests()
+        brain.reset_for_tests()
+        brain_session.reset_for_tests()
+        brain_watcher.reset_for_tests()
         recording.reset_for_tests()
         sockets.reset_for_tests()
         lanes.enforce(False)

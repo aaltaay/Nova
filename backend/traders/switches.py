@@ -16,7 +16,7 @@ import threading
 from pathlib import Path
 from typing import Any
 
-from constants_owners import AI_TRADERS, OWNER_CLAUDE, OWNER_NAMES
+from constants_owners import AI_TRADERS, OWNER_BRAIN, OWNER_CLAUDE, OWNER_NAMES
 from constants_traders import (
     TRADER_DAY_STOP,
     TRADER_LIVE,
@@ -110,6 +110,8 @@ def on_refusal(trader: str, now: float | None = None) -> tuple[str, str] | None:
         return TRADER_LIVE, f"The desk is on Live: {name} trades Paper and Sim only, so it stays Off."
     if trader == OWNER_CLAUDE and (why := _claude_day_stop()):
         return TRADER_DAY_STOP, why
+    if trader == OWNER_BRAIN and (why := _brain_day_stop()):
+        return TRADER_DAY_STOP, why
     from traders import limits
 
     flat_by = str(limits.of(trader)["flat_by"])
@@ -125,6 +127,18 @@ def _et(ts: float) -> Any:
     from market import ET
 
     return datetime.fromtimestamp(float(ts), ET)
+
+
+def _brain_day_stop() -> str | None:
+    """The brain's day stop was reached today (its door's rule until its loss line lands, build order 4); None when
+    it was not, or when Paper cannot be read -- the door refuses each entry itself then (``BRAIN_STALE``)."""
+    from brain import book, rules
+
+    try:
+        return rules.day_refusal(book.day_pnl())
+    except book.ReadError:
+        logger.warning("TRADERS: Paper could not be read for the brain's day stop", exc_info=True)
+        return None
 
 
 def _claude_day_stop() -> str | None:
