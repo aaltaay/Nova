@@ -33,6 +33,8 @@ BRAIN_IN_TRADE = "BRAIN_IN_TRADE"
 BRAIN_DAY_STOP = "BRAIN_DAY_STOP"
 BRAIN_STALE = "BRAIN_STALE"
 BRAIN_REFUSED = "BRAIN_REFUSED"               # anything else, said in words
+BRAIN_HELD_TEXT = "Another program holds the brain's door: its heartbeat is fresh"
+BRAIN_NOT_CLAIMED_TEXT = "This program has not claimed the brain's door (POST /api/brain/claim with X-Nova-Brain-Session)"
 BRAIN_UNREAD_TEXT = "Paper could not be read just now, so the brain sends nothing: an unknown is never read as flat"
 
 BRAIN_EVENT_KINDS = ("claim", "watch", "armed", "buy_set", "fill", "stop_moved", "close", "refused", "flat_by",

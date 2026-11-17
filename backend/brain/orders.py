@@ -13,7 +13,7 @@ import logging
 import uuid
 from typing import Any
 
-from brain.constants_brain import BRAIN_KEY_PREFIX, BRAIN_ORIGIN, BRAIN_SETUP_PREFIX, BRAIN_VENUE
+from brain.constants_brain import BRAIN_KEY_PREFIX, BRAIN_ORIGIN, BRAIN_SETUP_PREFIX, BRAIN_UNREAD_TEXT, BRAIN_VENUE
 from execution.models import ExecutionCommand
 
 logger = logging.getLogger(__name__)
@@ -102,9 +102,9 @@ async def close(symbol: str | None = None) -> list[str]:
                 receipt = await sell(held, lot["qty"])
                 if why := receipt_error(receipt):
                     problems.append(f"close {held}: {why}")
-    except book.ReadError as exc:
+    except book.ReadError:
         logger.warning("BRAIN close: Paper could not be read", exc_info=True)
-        problems.append(str(exc))
+        problems.append(BRAIN_UNREAD_TEXT)
     if problems:
         logger.error("BRAIN close (%s): %s", sym or "everything", "; ".join(problems))
     return problems

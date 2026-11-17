@@ -7,7 +7,7 @@ import logging
 from typing import Any
 
 from brain import book, rules, session
-from brain.constants_brain import BRAIN_DAY_STOP_USD, BRAIN_ORIGIN, BRAIN_SCHEMA_VERSION
+from brain.constants_brain import BRAIN_DAY_STOP_USD, BRAIN_ORIGIN, BRAIN_SCHEMA_VERSION, BRAIN_UNREAD_TEXT
 from constants_traders import TRADER_STATE_BUY_SET, TRADER_STATE_IN_TRADE, TRADER_STATE_WATCHING
 
 logger = logging.getLogger(__name__)
@@ -80,8 +80,9 @@ def status(session_id: str | None = None) -> dict[str, Any]:
     error = None
     try:
         orders = [{k: row.get(k) for k in _ORDER_FIELDS} for row in book.working()]
-    except book.ReadError as exc:
-        error = str(exc)
+    except book.ReadError:
+        logger.warning("BRAIN view: Paper's orders could not be read", exc_info=True)
+        error = BRAIN_UNREAD_TEXT
     handed = traders_view._handed(BRAIN_ORIGIN, broker)
     today = traders_view._today(BRAIN_ORIGIN, broker)
     today["loss_limit_usd"] = BRAIN_DAY_STOP_USD

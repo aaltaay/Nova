@@ -24,11 +24,14 @@ from auth import require_agent_key
 from brain import book, orders, rules, session, view
 from brain.constants_brain import (
     BRAIN_HELD,
+    BRAIN_HELD_TEXT,
     BRAIN_NOT_CLAIMED,
+    BRAIN_NOT_CLAIMED_TEXT,
     BRAIN_NOT_PAPER,
     BRAIN_NOTE_MAX,
     BRAIN_REFUSED,
     BRAIN_STALE,
+    BRAIN_UNREAD_TEXT,
     BRAIN_VENUE,
     BRAIN_WHY_MAX,
 )
@@ -80,11 +83,12 @@ def _refuse(code: str, text: str, status: int = 409) -> HTTPException:
 
 
 def _holder(session_id: str | None) -> str:
-    """The session that holds the door, its heartbeat refreshed; ``409`` for any other."""
+    """The session that holds the door, its heartbeat refreshed; ``409`` for any other. A refusal says fixed words:
+    an exception's own text goes to the log, never to the caller."""
     try:
         session.beat(session_id or "")
     except session.NotClaimed as exc:
-        raise _refuse(BRAIN_NOT_CLAIMED, str(exc)) from exc
+        raise _refuse(BRAIN_NOT_CLAIMED, BRAIN_NOT_CLAIMED_TEXT) from exc
     return str(session_id)
 
 
@@ -98,9 +102,9 @@ def claim(x_nova_brain_session: str | None = Header(default=None)) -> dict[str, 
     try:
         new = session.claim(x_nova_brain_session or "")
     except session.Held as exc:
-        raise _refuse(BRAIN_HELD, str(exc)) from exc
+        raise _refuse(BRAIN_HELD, BRAIN_HELD_TEXT) from exc
     except session.NotClaimed as exc:
-        raise _refuse(BRAIN_NOT_CLAIMED, str(exc), 400) from exc
+        raise _refuse(BRAIN_NOT_CLAIMED, BRAIN_NOT_CLAIMED_TEXT, 400) from exc
     if new:
         session.event("claim", "The brain's program connected")
     return {"ok": True, "session": session.view(x_nova_brain_session)}
@@ -179,7 +183,7 @@ async def move_stop(body: StopBody, x_nova_brain_session: str | None = Header(de
     try:
         row = book.stop_of(sym)
     except book.ReadError as exc:
-        raise _refuse(BRAIN_STALE, str(exc)) from exc
+        raise _refuse(BRAIN_STALE, BRAIN_UNREAD_TEXT) from exc
     if row is None:
         raise _refuse(BRAIN_REFUSED, f"The brain has no stop resting on {sym}")
     if body.stop <= float(row["stop_price"]):
@@ -197,7 +201,7 @@ async def cancel(body: CancelBody, x_nova_brain_session: str | None = Header(def
     try:
         row = next((r for r in book.working() if int(r.get("order_id") or -1) == body.order_id), None)
     except book.ReadError as exc:
-        raise _refuse(BRAIN_STALE, str(exc)) from exc
+        raise _refuse(BRAIN_STALE, BRAIN_UNREAD_TEXT) from exc
     if row is None:
         raise _refuse(BRAIN_REFUSED, f"Order {body.order_id} is not one of the brain's working orders")
     receipt = await orders.cancel(body.order_id, str(row["symbol"]))
