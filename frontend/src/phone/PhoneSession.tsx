@@ -22,7 +22,7 @@ import { setOrderDoor } from '../ibkr/orderDoor';
 import { PhoneDoor, type Answer, type SimClockMove } from '../phone_link';
 import { simClockResource, type SimClockState } from '../sim';
 import { setDeskClockOffsetMs } from '../utils/deskClock';
-import { createPhoneLink, type PhoneLinkView } from './phoneLink';
+import { createPhoneLink, linkIsDown, type PhoneLinkView } from './phoneLink';
 import { PhonePinSheet } from './PhonePinSheet';
 
 export type BannerTone = 'sending' | 'done' | 'sent' | 'filled' | 'refused';
@@ -84,6 +84,13 @@ export interface PhoneSessionValue {
   order: (label: string, run: () => Promise<TicketAnswer>, how?: 'sent' | 'done') => void;
   /** Put a banner up: a fill, a padlock that is locked. */
   notify: (banner: PhoneBanner) => void;
+  /** The No link sheet is up: reads have failed for 5 s and it was not closed, or the red pill was tapped. */
+  noLinkOpen: boolean;
+  closeNoLink: () => void;
+  /** Open the sheet now, before the 5 s too: a tap on the red pill. */
+  openNoLink: () => void;
+  /** Read the door now: the sheet's Try again. */
+  retryLink: () => void;
 }
 
 const Ctx = createContext<PhoneSessionValue | null>(null);
@@ -106,6 +113,8 @@ export function PhoneSessionProvider({ children }: { children: ReactNode }) {
   const afterPin = useRef<(() => void) | null>(null);
   const doneTimer = useRef<number | null>(null);
   const onItsWay = useRef(false);
+  // The No link sheet: up by itself once reads have failed long enough, closed by its X, opened by the pill.
+  const [noLink, setNoLink] = useState<'auto' | 'closed' | 'open'>('auto');
   const refreshAccount = useIbkrAccountContext().refresh;
 
   /**
@@ -132,6 +141,15 @@ export function PhoneSessionProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     setDeskClockOffsetMs(view.offsetMs);
   }, [view.offsetMs]);
+
+  // A link that came back forgets the X: the next drop says so again.
+  useEffect(() => {
+    if (view.reachable !== false) setNoLink('auto');
+  }, [view.reachable]);
+  const noLinkOpen = view.reachable === false && (noLink === 'open' || (noLink === 'auto' && linkIsDown(view)));
+  const closeNoLink = useCallback(() => setNoLink('closed'), []);
+  const openNoLink = useCallback(() => setNoLink('open'), []);
+  const retryLink = useCallback(() => link.refresh(), [link]);
 
   const show = useCallback((next: PhoneBanner | null) => {
     if (doneTimer.current != null) window.clearTimeout(doneTimer.current);
@@ -257,7 +275,11 @@ export function PhoneSessionProvider({ children }: { children: ReactNode }) {
     send,
     order,
     notify: show,
-  }), [askPin, banner, door, lockPhone, moveSim, moveVenue, order, send, setArmed, show, status, unlocked, view]);
+    noLinkOpen,
+    closeNoLink,
+    openNoLink,
+    retryLink,
+  }), [askPin, banner, closeNoLink, door, lockPhone, moveSim, moveVenue, noLinkOpen, openNoLink, order, retryLink, send, setArmed, show, status, unlocked, view]);
 
   return (
     <Ctx.Provider value={value}>

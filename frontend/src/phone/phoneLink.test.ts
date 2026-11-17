@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PhoneStatus } from '../phone_link';
-import { BEAT_EVERY_MS, BEAT_MISS_MS, WAITING, createPhoneLink, linkText, linkTone, type BeatSource } from './phoneLink';
+import { BEAT_EVERY_MS, BEAT_MISS_MS, NO_LINK_AFTER_MS, WAITING, createPhoneLink, linkIsDown, linkText, linkTone, type BeatSource } from './phoneLink';
 
 const STATUS: PhoneStatus = { pin_set: true, unlocked: false, expires_at: null, venue: 'paper', paper: true, armed: false };
 
@@ -18,7 +18,7 @@ function fakeDoc(): Document & { setHidden(hidden: boolean): void } {
 }
 
 /** A door whose next answers are scripted: a status, or null for "the PC did not answer". */
-function door(answers: Array<{ status: PhoneStatus | null; ms: number }>): BeatSource & { asked: number } {
+function door(answers: Array<{ status: PhoneStatus | null; ms: number; http?: number | null }>): BeatSource & { asked: number } {
   const self = {
     asked: 0,
     beat: () => {
@@ -109,6 +109,51 @@ describe("the phone's heartbeat", () => {
     await vi.advanceTimersByTimeAsync(0);
     expect(d.asked).toBe(2);
     expect(link.get().drops).toBe(0);
+    link.stop();
+  });
+
+  it('says why a read failed: no network on the phone, an answer that is not Nova, or no answer', async () => {
+    let online = true;
+    const dead = { status: null, ms: 20 };
+    const link = createPhoneLink(door([dead, { ...dead, http: 502 }, dead, { status: STATUS, ms: 40, http: 200 }]), fakeDoc(), () => online);
+    link.start();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(link.get()).toMatchObject({ why: 'pc', http: null, lastAnswerAt: null });
+    await vi.advanceTimersByTimeAsync(BEAT_EVERY_MS);
+    expect(link.get()).toMatchObject({ why: 'nova', http: 502 });
+    online = false;
+    await vi.advanceTimersByTimeAsync(BEAT_EVERY_MS);
+    expect(link.get()).toMatchObject({ why: 'offline', http: null });
+    await vi.advanceTimersByTimeAsync(BEAT_EVERY_MS);
+    expect(link.get()).toMatchObject({ reachable: true, why: null, downSince: null, lastAnswerAt: Date.now() });
+    link.stop();
+  });
+
+  it('is down only once reads have failed for 5 s, counted from when the first one was sent', async () => {
+    const link = createPhoneLink(door(Array.from({ length: 8 }, () => ({ status: null, ms: 20 }))), fakeDoc());
+    link.start();
+    const sent = Date.now();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(link.get().downSince).toBe(sent);
+    await vi.advanceTimersByTimeAsync(NO_LINK_AFTER_MS - BEAT_EVERY_MS);
+    expect(linkTone(link.get())).toBe('down');
+    expect(linkIsDown(link.get())).toBe(false);
+    await vi.advanceTimersByTimeAsync(BEAT_EVERY_MS);
+    expect(linkIsDown(link.get())).toBe(true);
+    link.stop();
+  });
+
+  it('does not count the time the page was hidden toward the 5 s', async () => {
+    const doc = fakeDoc();
+    const link = createPhoneLink(door(Array.from({ length: 4 }, () => ({ status: null, ms: 20 }))), doc);
+    link.start();
+    await vi.advanceTimersByTimeAsync(0);
+    doc.setHidden(true);
+    await vi.advanceTimersByTimeAsync(60_000);
+    doc.setHidden(false);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(link.get().reachable).toBe(false);
+    expect(linkIsDown(link.get())).toBe(false);
     link.stop();
   });
 

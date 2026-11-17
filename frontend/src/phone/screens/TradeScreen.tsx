@@ -49,9 +49,19 @@ function ms(value: number | null | undefined): string {
 
 /** How fresh the screen is: the book's age on arrival, and how long the PC takes to answer a tap. */
 function DataTapPill({ symbol, behind }: { symbol: string; behind: boolean }) {
-  const { link } = usePhoneSession();
+  const { link, openNoLink } = usePhoneSession();
   const data = useLevel2Age(symbol);
-  const tone = behind || linkTone(link) === 'down' ? 'down' : linkTone(link) === 'slow' ? 'slow' : linkTone(link);
+  const noLink = linkTone(link) === 'down';
+  const tone = behind || noLink ? 'down' : linkTone(link) === 'slow' ? 'slow' : linkTone(link);
+  // The PC is not answering: the pill says so, and a tap says why (the header pill's job on other screens).
+  if (noLink) {
+    return (
+      <button type="button" className="ph-trade__fresh" data-tone={tone} data-testid="phone-fresh" aria-label="No link to your PC. Why?" onClick={openNoLink}>
+        <span>Data</span><b>{ms(data)}</b>
+        <span>Tap</span><b>No link</b>
+      </button>
+    );
+  }
   return (
     <div className="ph-trade__fresh" data-tone={tone} role="status" data-testid="phone-fresh" aria-label={`Level 2 is ${ms(data)} old. The PC answers a tap in ${ms(link.roundTrip?.p50)}`}>
       <span>Data</span><b>{ms(data)}</b>

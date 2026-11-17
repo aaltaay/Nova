@@ -88,6 +88,11 @@ it on the home screen, full screen; it opens there from then on.
 - **To use the padlock, cancel or send an order,** the phone asks for your PIN first: the same PIN you type on the
   PC. The unlock lasts 8 hours and ends when the page is reloaded. An order tapped while the phone was locked is
   not sent when the PIN opens it: tap again.
+- **When it says "No link"** the phone is not getting answers from the PC. After 5 seconds a sheet says why and
+  what to do, and an amber line under the header says how old the screen is; nothing can be sent until the link is
+  back. Nearly always Tailscale has stopped on the phone: open it and turn it on. The sheet goes by itself when the
+  PC answers. To keep Tailscale on, set it as the phone's **Always-on VPN** (Android: Settings > Connections > More
+  connection settings > VPN > the gear beside Tailscale) and set its battery use to **Unrestricted**.
 - **Nothing scrolls.** A long list has Prev and Next.
 - **Trade** shows one stock: its chart, Level 2, the tape and the order ticket. Tap a blue ticker chip to open a
   stock there; the Trade tab reopens the last one.
