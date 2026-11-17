@@ -261,7 +261,39 @@ def test_off_hands_the_trade_to_you_and_the_brain_leaves_it_alone(paper):
     paper.market.now = at("15:56:00")
     asyncio.run(watcher.run_pass(now=2000.0))                           # flat by never sells what is yours
     assert book.positions(with_handed=True)["SMPL"]["qty"] == 500
+    legs = {r["leg_role"] for r in book.working()}
+    assert legs == {"target", "stop"}                                   # and never cancels the exits that protect it
+    assert book.working(with_handed=False) == [] and book.stop_of("SMPL") is None
+    moved = paper.client.post("/api/brain/stop", headers=h, json={"symbol": "SMPL", "stop": 4.10})
+    assert moved.status_code == 409                                     # a handed trade's stop is not the brain's to move
+    assert paper.client.post("/api/brain/close", headers=h, json={"symbol": "SMPL"}).status_code == 200
+    assert book.positions(with_handed=True)["SMPL"]["qty"] == 500 and legs == {r["leg_role"] for r in book.working()}
     assert "handed" in [e["kind"] for e in session.events(paper.market.now)]
+
+
+def test_two_entries_at_once_never_both_pass(paper, monkeypatch):
+    """Codex review on PR #1332: the check and the send are one step, so the second entry reads the first one's order."""
+    from fastapi import HTTPException
+
+    from brain import orders, routes
+
+    _brain(paper)
+    real = orders.send_entry
+
+    async def slow(order):
+        await asyncio.sleep(0.01)                                       # the door is busy: the other request runs meanwhile
+        return await real(order)
+
+    monkeypatch.setattr(orders, "send_entry", slow)
+
+    async def both():
+        body = routes.OrderBody(**GOOD)
+        return await asyncio.gather(routes.place(body, "brain-1"), routes.place(body, "brain-1"), return_exceptions=True)
+
+    first, second = asyncio.run(both())
+    assert isinstance(first, dict) and isinstance(second, HTTPException)
+    assert second.detail["reason"] == "BRAIN_IN_TRADE"
+    assert book.positions()["SMPL"]["qty"] == 500
 
 
 def test_only_the_operator_flips_the_brains_switch(paper):

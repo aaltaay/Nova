@@ -59,12 +59,18 @@ def positions(*, with_handed: bool = False) -> dict[str, dict[str, float]]:
         raise ReadError(f"Paper's positions could not be read: {exc}") from exc
 
 
-def working() -> list[dict[str, Any]]:
-    """The brain's working orders on Paper (a bracket's waiting exits too)."""
+def working(*, with_handed: bool = True) -> list[dict[str, Any]]:
+    """The brain's working orders on Paper (a bracket's waiting exits too). ``with_handed=False`` leaves out the
+    exits resting on a stock handed to the operator: they protect the operator's trade and are not the brain's to
+    move or cancel."""
     try:
-        return [r for r in paper().ledger.working_orders() if r.get("order_origin") == BRAIN_ORIGIN]
+        rows = [r for r in paper().ledger.working_orders() if r.get("order_origin") == BRAIN_ORIGIN]
     except Exception as exc:
         raise ReadError(f"Paper's orders could not be read: {exc}") from exc
+    if with_handed:
+        return rows
+    skip = handed()
+    return [r for r in rows if str(r.get("symbol") or "").upper() not in skip]
 
 
 def entries(rows: list[dict[str, Any]] | None = None) -> list[dict[str, Any]]:
@@ -74,9 +80,9 @@ def entries(rows: list[dict[str, Any]] | None = None) -> list[dict[str, Any]]:
 
 
 def stop_of(symbol: str, rows: list[dict[str, Any]] | None = None) -> dict[str, Any] | None:
-    """Its resting stop on ``symbol``, or None."""
+    """Its resting stop on ``symbol``, or None (never the stop on a stock handed to the operator)."""
     sym = (symbol or "").upper()
-    for row in (working() if rows is None else rows):
+    for row in (working(with_handed=False) if rows is None else rows):
         if str(row.get("symbol") or "").upper() == sym and row.get("leg_role") == "stop" and row.get("stop_price") is not None:
             return row
     return None

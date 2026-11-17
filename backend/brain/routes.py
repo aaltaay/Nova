@@ -14,6 +14,7 @@ API key and the brain's own ``X-Nova-Brain-Session`` id, and all but ``claim`` n
 """
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 
 from fastapi import APIRouter, Depends, Header, HTTPException
@@ -38,6 +39,8 @@ from brain.constants_brain import (
 
 router = APIRouter(prefix="/api/brain", tags=["brain"], dependencies=[Depends(require_local)])
 _keyed = [Depends(require_agent_key)]
+_lock: asyncio.Lock | None = None
+_lock_loop: asyncio.AbstractEventLoop | None = None
 
 
 class WatchBody(BaseModel):
@@ -80,6 +83,16 @@ class CloseBody(BaseModel):
 
 def _refuse(code: str, text: str, status: int = 409) -> HTTPException:
     return HTTPException(status_code=status, detail={"reason": code, "error": text})
+
+
+def _entry_lock() -> asyncio.Lock:
+    """One entry at a time: ``rules.entry_refusal`` reads the brain's book, and a second entry must read it after the
+    first one's order is on it (one position at a time, its risk a trade)."""
+    global _lock, _lock_loop
+    loop = asyncio.get_running_loop()
+    if _lock is None or _lock_loop is not loop:
+        _lock, _lock_loop = asyncio.Lock(), loop
+    return _lock
 
 
 def _holder(session_id: str | None) -> str:
@@ -160,12 +173,13 @@ async def place(body: OrderBody, x_nova_brain_session: str | None = Header(defau
     sid = _holder(x_nova_brain_session)
     order = body.model_dump()
     order["symbol"] = body.symbol.strip().upper()
-    if refused := rules.entry_refusal(order):
-        session.event("refused", f"Buy {body.qty:g} {order['symbol']} at {body.limit:g} refused: {refused[1]}",
-                      order["symbol"])
-        raise _refuse(*refused)
-    session.set_note(body.why)
-    receipt = await orders.send_entry(order)
+    async with _entry_lock():          # the check and the send are one step: two entries at once never both pass
+        if refused := rules.entry_refusal(order):
+            session.event("refused", f"Buy {body.qty:g} {order['symbol']} at {body.limit:g} refused: {refused[1]}",
+                          order["symbol"])
+            raise _refuse(*refused)
+        session.set_note(body.why)
+        receipt = await orders.send_entry(order)
     if why := orders.receipt_error(receipt):
         session.event("refused", f"Buy {body.qty:g} {order['symbol']} at {body.limit:g} refused: {why}", order["symbol"])
         raise _refuse(getattr(receipt, "reason_code", None) or BRAIN_REFUSED, why)
@@ -199,7 +213,7 @@ async def move_stop(body: StopBody, x_nova_brain_session: str | None = Header(de
 async def cancel(body: CancelBody, x_nova_brain_session: str | None = Header(default=None)) -> dict[str, Any]:
     sid = _holder(x_nova_brain_session)
     try:
-        row = next((r for r in book.working() if int(r.get("order_id") or -1) == body.order_id), None)
+        row = next((r for r in book.working(with_handed=False) if int(r.get("order_id") or -1) == body.order_id), None)
     except book.ReadError as exc:
         raise _refuse(BRAIN_STALE, BRAIN_UNREAD_TEXT) from exc
     if row is None:

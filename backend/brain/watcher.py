@@ -2,7 +2,8 @@
 ``app_runtime_tasks``.
 
 - **Flat by.** At the brain's flat-by time (``trader-limits.json``, 15:55 ET) Nova cancels the brain's working
-  orders and sells its shares on Paper, whatever its switch says. Shares handed to the operator are the operator's.
+  orders and sells its shares on Paper, whatever its switch says. A stock handed to the operator is the operator's:
+  its shares stay and its stop and target keep resting.
 - **A program that stopped answering** is said once on the brain's stream. Nothing is sold for it: its stop and
   target keep resting.
 - **Fills** are said on the stream as the brain's position changes.
@@ -37,7 +38,7 @@ async def _flat_by(now: float) -> None:
     if flat_by is None or now - _last_flat_try < _FLAT_RETRY_SEC:
         return
     try:
-        if not book.positions() and not book.working():
+        if not book.positions() and not book.working(with_handed=False):
             return
     except book.ReadError:
         logger.warning("BRAIN flat by: Paper could not be read; trying again", exc_info=True)

@@ -83,13 +83,14 @@ async def sell(symbol: str, qty: float) -> Any:
 
 async def close(symbol: str | None = None) -> list[str]:
     """Cancel the brain's working orders (on ``symbol``, or everywhere) and sell its own shares there at market;
-    return what failed, in words. Shares handed to the operator are left alone: they are the operator's to close."""
+    return what failed, in words. A stock handed to the operator is left alone, its resting stop and target
+    included: the shares are the operator's to close and their exits keep protecting them."""
     from brain import book
 
     sym = (symbol or "").upper() or None
     problems: list[str] = []
     try:
-        for row in book.working():
+        for row in book.working(with_handed=False):
             if sym and str(row.get("symbol") or "").upper() != sym:
                 continue
             receipt = await cancel(int(row["order_id"]), str(row["symbol"]))
