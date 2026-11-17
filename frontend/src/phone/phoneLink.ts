@@ -24,7 +24,17 @@ export const BEAT_EVERY_MS = 1_000;
 /** A read that takes longer than this is a miss: the next one is already due. */
 export const BEAT_MISS_MS = 3_000;
 
+/** Reads that have failed this long put the No link sheet up: a Wi-Fi to cellular switch is shorter. */
+export const NO_LINK_AFTER_MS = 5_000;
+
 export type LinkTone = 'good' | 'slow' | 'down' | 'waiting';
+
+/**
+ * What the phone can tell apart when a read fails: it has no network itself (`offline`), something
+ * answered that is not Nova's 200 (`nova`: the tunnel's 502 when Nova is not running), or nothing
+ * answered (`pc`: Tailscale is off on the phone, or the PC is off; the phone cannot tell which).
+ */
+export type LinkDownWhy = 'offline' | 'nova' | 'pc';
 
 export interface PhoneLinkView {
   /** The door's last answer. Kept while the PC is not answering, so the screen says what it last knew. */
@@ -37,9 +47,27 @@ export interface PhoneLinkView {
   offsetMs: number | null;
   /** Times the PC stopped answering since this page opened. */
   drops: number;
+  /** Why the last read failed; null while reads succeed. */
+  why: LinkDownWhy | null;
+  /** The code of the answer that was not Nova's 200; null when nothing answered. */
+  http: number | null;
+  /** This device's clock (ms) at the last good answer; null before the first. */
+  lastAnswerAt: number | null;
+  /** This device's clock (ms) when the first read of this failing run was sent; hidden time is not counted. */
+  downSince: number | null;
+  /** This device's clock (ms) when this view was made: what "ago" is measured from. */
+  at: number;
 }
 
-export const WAITING: PhoneLinkView = { status: null, reachable: null, roundTrip: null, offsetMs: null, drops: 0 };
+export const WAITING: PhoneLinkView = {
+  status: null, reachable: null, roundTrip: null, offsetMs: null, drops: 0,
+  why: null, http: null, lastAnswerAt: null, downSince: null, at: 0,
+};
+
+/** Reads have failed for long enough to say so on every screen. */
+export function linkIsDown(view: PhoneLinkView): boolean {
+  return view.reachable === false && view.downSince != null && view.at - view.downSince >= NO_LINK_AFTER_MS;
+}
 
 /** Green under the order door's limit, amber over it, red when the PC does not answer. */
 export function linkTone(view: PhoneLinkView): LinkTone {
@@ -56,8 +84,11 @@ export function linkText(view: PhoneLinkView): string {
 }
 
 export interface BeatSource {
-  beat(): Promise<{ status: PhoneStatus | null; ms: number; asked: number }>;
+  beat(): Promise<{ status: PhoneStatus | null; ms: number; asked: number; http?: number | null }>;
 }
+
+/** The browser's own word on whether this device has a network; only a plain "no" counts. */
+const browserOnline = (): boolean => typeof navigator === 'undefined' || navigator.onLine !== false;
 
 export interface PhoneLink {
   start(): void;
@@ -68,7 +99,7 @@ export interface PhoneLink {
   subscribe(listener: () => void): () => void;
 }
 
-export function createPhoneLink(door: BeatSource, doc: Document = document): PhoneLink {
+export function createPhoneLink(door: BeatSource, doc: Document = document, online: () => boolean = browserOnline): PhoneLink {
   let view = WAITING;
   const listeners = new Set<() => void>();
   const roundTrips = new Rolling();
@@ -104,12 +135,19 @@ export function createPhoneLink(door: BeatSource, doc: Document = document): Pho
     } else {
       outages.down(now);
     }
+    const http = answer.http ?? null;
+    const why: LinkDownWhy | null = ok ? null : !online() ? 'offline' : http != null && http !== 200 ? 'nova' : 'pc';
     publish({
       status: answer.status ?? view.status,
       reachable: ok,
       roundTrip: roundTrips.spread(now),
       offsetMs: bestClock(clock)?.offsetMs ?? null,
       drops: outages.count,
+      why,
+      http: why === 'nova' ? http : null,
+      lastAnswerAt: ok ? now : view.lastAnswerAt,
+      downSince: ok ? null : view.downSince ?? answer.asked,
+      at: now,
     });
   };
 
@@ -122,6 +160,8 @@ export function createPhoneLink(door: BeatSource, doc: Document = document): Pho
     }
     if (hiddenAt != null) outages.skip(hiddenAt, now);
     hiddenAt = null;
+    // The 5 s starts again: a phone waking up has not been failing all the while it slept.
+    if (view.downSince != null) view = { ...view, downSince: now };
     void beat();
   };
 

@@ -401,6 +401,87 @@ html, body {
 .ph-banner__title { font-size: 15px; font-weight: 700; letter-spacing: -0.01em; line-height: 1.15; }
 .ph-banner__note { font-size: 11px; font-weight: 600; opacity: 0.85; line-height: 1.2; }
 
+/* ── No link: the old-data line and the sheet (mockup v1, 2026-11-17) ──── */
+.ph-stale {
+  flex-shrink: 0;
+  padding: 0 12px 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ph-warn);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ph-nolink {
+  position: absolute;
+  z-index: 7;
+  left: 8px;
+  right: 8px;
+  bottom: 8px;
+  max-width: 344px;
+  margin: 0 auto;
+  padding: 12px 14px 14px;
+  border-radius: 14px;
+  background: var(--ph-card);
+  border: 1px solid var(--ph-bad-line);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.55);
+  user-select: text;
+}
+.ph-nolink[data-bar='true'] { bottom: 56px; }
+.ph-nolink__head { display: flex; align-items: center; gap: 10px; }
+.ph-nolink__icon { flex-shrink: 0; color: var(--ph-bad-soft); }
+.ph-nolink__words { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.ph-nolink__title { font-size: 16px; font-weight: 700; letter-spacing: -0.01em; line-height: 1.15; }
+.ph-nolink__sub { font-size: 12px; color: var(--ph-muted); line-height: 1.25; }
+.ph-nolink__steps {
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: ph-step;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.ph-nolink__steps li {
+  counter-increment: ph-step;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--ph-dim);
+}
+.ph-nolink__steps li::before {
+  content: counter(ph-step);
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--ph-text);
+  font-size: 11px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.ph-nolink__warn { margin: 10px 0 12px; font-size: 12px; font-weight: 600; color: var(--ph-warn); }
+.ph-nolink__btns { display: flex; gap: 8px; }
+.ph-nolink__btn {
+  flex: 1 1 0;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--ph-text);
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+}
+.ph-nolink__btn.is-main { background: var(--ph-accent); color: var(--ph-bg); }
+
 /* ── The PIN sheet ────────────────────────────────────────────────────── */
 .ph-sheet {
   position: absolute;

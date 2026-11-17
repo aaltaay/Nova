@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { linkText, linkTone } from './phoneLink';
 import { go, goBack, type PhoneRoute, type PhoneTab } from './phoneRoute';
+import { NoLinkLine, NoLinkSheet } from './PhoneNoLink';
 import { usePhoneSession } from './PhoneSession';
 import { VenueMenu } from './VenueMenu';
 
@@ -68,9 +69,18 @@ export function VenuePill() {
 
 /** How this phone's link to the PC is doing: the middle round trip of the last 30 seconds. */
 export function LinkPill({ live = false, words }: { live?: boolean; words?: string }) {
-  const { link } = usePhoneSession();
+  const { link, openNoLink } = usePhoneSession();
   const tone = linkTone(link);
   const text = words && tone === 'good' ? words : `${live && tone === 'good' ? 'Live · ' : ''}${linkText(link)}`;
+  // Red, it is a button: a tap says why the PC does not answer.
+  if (tone === 'down') {
+    return (
+      <button type="button" className="ph-link" data-tone={tone} data-testid="phone-link" aria-label={`Link to your PC: ${text}. Why?`} onClick={openNoLink}>
+        <i aria-hidden="true" />
+        <span>{text}</span>
+      </button>
+    );
+  }
   return (
     <div className="ph-link" data-tone={tone} data-testid="phone-link" role="status" aria-label={`Link to your PC: ${text}`}>
       <i aria-hidden="true" />
@@ -206,8 +216,10 @@ export function PhoneScreen({ name, header, tab, bar = true, children }: {
   return (
     <div className="ph-screen" data-testid={`phone-screen-${name}`}>
       {header}
+      <NoLinkLine />
       <div className="ph-body">{children}</div>
       {bar ? <PhoneTabBar active={tab} /> : null}
+      <NoLinkSheet bar={bar} />
       <PhoneBannerView />
     </div>
   );

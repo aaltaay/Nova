@@ -138,7 +138,11 @@ export interface PhoneApi {
    * `accountDown`: the account, positions and orders reads fail from now on, as when the Gateway or the ledger drops.
    * `held`: your shares of the first symbol; an order that fills moves it, as the ledger would.
    */
-  state: { armed: boolean; unlocked: boolean; working: number[]; accountDown: boolean; held: number; halted?: boolean };
+  state: {
+    armed: boolean; unlocked: boolean; working: number[]; accountDown: boolean; held: number; halted?: boolean;
+    /** The heartbeat fails from now on: `gone` is no answer at all, a number the code a tunnel answers with. */
+    linkDown?: 'gone' | number;
+  };
 }
 
 const BID = 4.81;
@@ -284,6 +288,10 @@ export async function mockPhoneApi(page: Page, opts: PhoneApiOptions = {}): Prom
 
     if (api.state.accountDown && /^\/api\/(practice\/account|ibkr\/(account|positions|orders))/.test(path)) {
       return json({ detail: 'The ledger did not answer.' }, 500);
+    }
+
+    if (path === '/api/phone' && api.state.linkDown != null) {
+      return api.state.linkDown === 'gone' ? route.abort('connectionfailed') : route.fulfill({ status: api.state.linkDown, body: '' });
     }
 
     switch (path) {

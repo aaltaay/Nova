@@ -1163,6 +1163,28 @@ read below is one the desk already makes, and every write goes to `/api/phone`
   500 ms, amber over, red when the PC does not answer), the PC's clock against
   the phone's (from `now`), and a count of the times the PC stopped answering.
   A read that takes over 3 s is a miss. A hidden page reads nothing.
+- **When the PC stops answering** (operator, 2026-11-17: "Why does it say no
+  link?"). The pill turns red at once. Once reads have failed for 5 s, counted
+  from when the first failed read was sent and not over time the page was
+  hidden, every screen shows an amber line under its header with the time of
+  the last answer ("Showing 5:14 AM. Not live."; the phone's own clock) and a
+  sheet over its foot. The sheet names only what the phone can tell apart, and
+  what to do:
+
+  | The phone sees | The sheet says |
+  |---|---|
+  | the browser reports no network (`navigator.onLine` false) | This phone is offline: turn Wi-Fi or mobile data on |
+  | an HTTP answer that is not Nova's: 502, 503 or 504 from the tunnel | Nova isn't running on the PC: start Nova |
+  | any other HTTP answer that is not 200 | Nova answered with an error, and the code: restart Nova |
+  | no answer at all, or one slower than the miss limit | Can't reach your PC: turn Tailscale on, on this phone; still nothing, the PC is off or asleep. On Android a button opens Tailscale |
+
+  No answer cannot tell "Tailscale is off on the phone" from "the PC is off":
+  the sheet lists both and claims neither. It always says a tap may not reach
+  the PC until the link is back, and locks nothing: the heartbeat is one read,
+  so every order, sell, Flatten and cancel is still sent and answered in the
+  banner. It has Try again (one read now). Its X closes it
+  until the link returns and drops again; a tap on the red pill opens it, before
+  the 5 s too. It goes by itself on the first good answer. It adds no route.
 - **What each screen reads** (all GETs and sockets the desk makes):
 
   | Screen | Reads |

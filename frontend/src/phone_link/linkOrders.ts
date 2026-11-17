@@ -197,8 +197,9 @@ export class PhoneDoor {
   /**
    * One timed read of the door's status: what the phone's screens ask once a second. `status` is null
    * when Nova did not answer; `ms` is the round trip either way, and `asked` this device's clock when it left.
+   * `http` is the code of whatever did answer (the tunnel's 502 when Nova is not running), null when nothing did.
    */
-  async beat(): Promise<{ status: PhoneStatus | null; ms: number; asked: number }> {
+  async beat(): Promise<{ status: PhoneStatus | null; ms: number; asked: number; http: number | null }> {
     const asked = Date.now();
     const started = performance.now();
     // The token this read carries: its answer speaks for that token only.
@@ -210,9 +211,9 @@ export class PhoneDoor {
       // newer unlock) reads `unlocked: false`: drop the token, so the next tap asks for the PIN instead of being
       // sent and refused. A read that left before an unlock carried no token; its answer must not drop the new one.
       if (sent != null && this.token === sent && (res.status === 401 || status?.unlocked === false)) this.token = null;
-      return { status, ms: res.ms, asked };
+      return { status, ms: res.ms, asked, http: res.status };
     } catch {
-      return { status: null, ms: performance.now() - started, asked };
+      return { status: null, ms: performance.now() - started, asked, http: null };
     }
   }
 

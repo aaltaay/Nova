@@ -15,6 +15,7 @@ import { computeQuoteMetrics } from '../../modules';
 import { fmtRvol } from '../../utils/quoteFormat';
 import { useWorkspace } from '../../workspace';
 import { BackButton, LinkPill, PhoneBannerView, TickerChip, VenuePill } from '../PhoneChrome';
+import { NoLinkLine, NoLinkSheet } from '../PhoneNoLink';
 import { FrameSwitch, PhoneChart, usePhoneChartPrefs } from '../PhoneChart';
 import { catalystLine } from '../phoneCatalyst';
 import { useViewport } from '../phoneFit';
@@ -171,6 +172,7 @@ export function ChartScreen({ symbol }: { symbol: string }) {
           <span className="ph-grow" />
           <LinkPill />
         </div>
+        <NoLinkLine />
         {catalyst}
         <div className="ph-bigchart__box">
           <div className="ph-stock__legend">
@@ -200,6 +202,7 @@ export function ChartScreen({ symbol }: { symbol: string }) {
             <RectangleHorizontal size={18} aria-hidden="true" />
           </button>
         </div>
+        <NoLinkSheet bar={false} />
         <PhoneBannerView />
       </div>
     );
@@ -223,6 +226,7 @@ export function ChartScreen({ symbol }: { symbol: string }) {
           </button>
         ) : null}
       </div>
+      <NoLinkLine />
       {catalyst}
       <div className="ph-bigchart__main">
         <div className="ph-bigchart__rail">
@@ -250,6 +254,7 @@ export function ChartScreen({ symbol }: { symbol: string }) {
           {layersMenu}
         </div>
       </div>
+      <NoLinkSheet bar={false} />
       <PhoneBannerView />
     </div>
   );
