@@ -26,7 +26,7 @@ test('a PC that stops answering puts up the sheet after 5 s, and a good answer t
   await expect(sheet).toContainText("Can't reach your PC");
   await expect(sheet).toContainText('Last answer');
   await expect(sheet).toContainText('Turn Tailscale on, on this phone.');
-  await expect(sheet).toContainText('Nothing can be sent until the link is back.');
+  await expect(sheet).toContainText('A tap may not reach the PC until the link is back.');
   await expect(page.getByTestId('phone-stale')).toContainText('Not live.');
   expect(await phoneOverflow(page)).toEqual([]);
 

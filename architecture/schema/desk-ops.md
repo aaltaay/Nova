@@ -1179,8 +1179,10 @@ read below is one the desk already makes, and every write goes to `/api/phone`
   | no answer at all, or one slower than the miss limit | Can't reach your PC: turn Tailscale on, on this phone; still nothing, the PC is off or asleep. On Android a button opens Tailscale |
 
   No answer cannot tell "Tailscale is off on the phone" from "the PC is off":
-  the sheet lists both and claims neither. It always says nothing can be sent
-  until the link is back, and has Try again (one read now). Its X closes it
+  the sheet lists both and claims neither. It always says a tap may not reach
+  the PC until the link is back, and locks nothing: the heartbeat is one read,
+  so every order, sell, Flatten and cancel is still sent and answered in the
+  banner. It has Try again (one read now). Its X closes it
   until the link returns and drops again; a tap on the red pill opens it, before
   the 5 s too. It goes by itself on the first good answer. It adds no route.
 - **What each screen reads** (all GETs and sockets the desk makes):

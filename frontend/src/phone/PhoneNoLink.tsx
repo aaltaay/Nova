@@ -29,7 +29,11 @@ export function NoLinkLine() {
   );
 }
 
-/** The sheet: why the PC does not answer, what to do, and that nothing can be sent meanwhile. */
+/**
+ * The sheet: why the PC does not answer, what to do, and that a tap may not arrive meanwhile. It locks nothing:
+ * the heartbeat is one read, and an order, a sell, a Flatten or a cancel is still sent and answered in the
+ * banner (ADR 045: exits always go). So it warns, and never says nothing can be sent.
+ */
 export function NoLinkSheet({ bar }: { bar: boolean }) {
   const { link, noLinkOpen, closeNoLink, retryLink } = usePhoneSession();
   if (!noLinkOpen) return null;
@@ -57,7 +61,7 @@ export function NoLinkSheet({ bar }: { bar: boolean }) {
       <ol className="ph-nolink__steps">
         {words.steps.map((step) => <li key={step}>{step}</li>)}
       </ol>
-      <p className="ph-nolink__warn">Nothing can be sent until the link is back.</p>
+      <p className="ph-nolink__warn">A tap may not reach the PC until the link is back.</p>
       <div className="ph-nolink__btns">
         {words.tailscale && onAndroid() ? (
           <a className="ph-nolink__btn is-main" href={TAILSCALE_INTENT} data-testid="phone-nolink-tailscale">Open Tailscale</a>
