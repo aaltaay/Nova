@@ -108,10 +108,10 @@ export async function fetchBrainSeat(signal?: AbortSignal): Promise<BrainSeatSta
   return view;
 }
 
-/** The 409's own words (`{detail: {reason, error}}`), else what the desk answered. */
+/** The refusal's own words (`{detail: {reason, error}}`, or a plain `detail`), else what the desk answered. */
 function refusal(status: number, answer: unknown): string {
-  const detail = obj(obj(answer).detail);
-  return str(detail.error) ?? `The brain's switch answered ${status}.`;
+  const top = obj(answer);
+  return str(obj(top.detail).error) ?? str(top.detail) ?? str(top.error) ?? `The brain's switch answered ${status}.`;
 }
 
 /**

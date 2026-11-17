@@ -73,14 +73,14 @@ const at = (day: string, hm: string) => Date.parse(`${day}T${hm}:00${etOffset(da
 const EMPTY_LANE = { symbol: null, since: null, depth: false, tape: false, recording: false, error: null };
 const ON: AutoRecordSwitch = { mode: 'on', source: 'default', day: null, until: null, error: null };
 
-/** The lanes on the wire (ADR 071): `you` and `bots` on these stocks, each recording. */
-function lanes(you: string | null, bots: string | null, recording = true) {
+/** The lanes on the wire (ADR 071, ADR 072): `you` and `brain` on these stocks, each recording. */
+function lanes(you: string | null, brain: string | null, recording = true) {
   return {
-    schema_version: 1, recording_error: null,
+    schema_version: 2, recording_error: null,
     you: { ...EMPTY_LANE, symbol: you, depth: true, tape: true, recording: recording && you != null },
     claude: EMPTY_LANE,
-    bots: { ...EMPTY_LANE, symbol: bots, depth: true, tape: true, recording: recording && bots != null,
-      setup: bots ? 'flat_top_5m' : null, why: bots ? 'near' : null, waiting: [] },
+    brain: { ...EMPTY_LANE, symbol: brain, depth: true, tape: true, recording: recording && brain != null,
+      why: brain ? '5-minute flat top, 3 touches' : null },
   };
 }
 
@@ -296,7 +296,7 @@ describe('RecordsPage', () => {
     });
     const now = row('records-now')!;
     expect(now.textContent).toMatch(/2 of 3 recording slots in use/);
-    expect(row('records-now-COHQ')!.textContent).toMatch(/The bots' lane · 5-minute flat top · near its trigger/);
+    expect(row('records-now-COHQ')!.textContent).toMatch(/The brain's lane · 5-minute flat top, 3 touches/);
     expect(row('records-now-AXTQ')!.textContent).toMatch(/Your lane/);
     expect(row('records-now-COHQ')!.textContent).toMatch(/since 13:58, resumed 14:36 after a Nova restart/);
     expect(row('records-now-free')!.textContent).toMatch(/free slot/);

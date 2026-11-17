@@ -140,7 +140,7 @@ export function buySetRow(status: ClaudeSeatStatus): string | null {
 /** The panel's "My line" row. */
 export function lineRow(status: ClaudeSeatStatus): string {
   const l = status.line;
-  // Claude's own lane (ADR 071): one of the three lines, never yours or the bots'.
+  // Claude's own lane (ADR 071): one of the three lines, never yours or the brain's.
   if (l.symbol && l.depth) return `Level 2 + Time & Sales on ${l.symbol} · Claude's lane`;
   if (status.state === 'waiting_line') return l.why_not ?? 'Waiting for a Level 2 line';
   return 'None yet';

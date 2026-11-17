@@ -39,7 +39,7 @@ class FakeWebSocket {
 
 type DepthState = ReturnType<typeof useIbkrDepth>;
 
-const lane = { you: 'TGHL', claude: null, bots: null };
+const lane = { you: 'TGHL', claude: null, brain: null };
 const TAPE_LANE = { type: 'lane', symbol: 'ABC', message: 'Your Level 2 moved to TGHL.', lane };
 const DEPTH_LANE = { type: 'error', symbol: 'ABC', message: 'Your Level 2 moved to TGHL.', evicted: true, lane };
 
@@ -55,8 +55,8 @@ function lanesAnswer(you: string | null, claude: string | null = null) {
     ok: true,
     status: 200,
     json: async () => ({
-      schema_version: 1, you: { ...empty, symbol: you }, claude: { ...empty, symbol: claude },
-      bots: { ...empty, setup: null, why: null, waiting: [] }, recording_error: null,
+      schema_version: 2, you: { ...empty, symbol: you }, claude: { ...empty, symbol: claude },
+      brain: { ...empty, why: null }, recording_error: null,
     }),
   };
 }

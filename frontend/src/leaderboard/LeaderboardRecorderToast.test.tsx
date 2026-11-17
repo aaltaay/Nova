@@ -51,13 +51,13 @@ describe('status fields and the planned "auto" and "lane" stops (ADR 023, ADR 07
     const parsed = normalizeIbkrStatus({
       connected: true, mode: 'sim',
       leaderboard_recorder: { recording: true, ok: false, error: 'disk full', since: 5, run_id: 7 },
-      lanes: { schema_version: 1, you: { symbol: 'grml', depth: true, tape: 'x', recording: true }, claude: 3, bots: null },
+      lanes: { schema_version: 2, you: { symbol: 'grml', depth: true, tape: 'x', recording: true }, claude: 3, brain: null },
       recording_switch: { mode: 'on', source: 'operator', day: null, until: null, error: null },
     })!;
     expect(parsed.leaderboard_recorder).toEqual({ recording: true, ok: false, error: 'disk full', since: 5, run_id: null });
     expect(parsed.lanes?.you).toEqual({ symbol: 'GRML', since: null, depth: true, tape: false, recording: true, error: null });
     expect(parsed.lanes?.claude.symbol).toBeNull();
-    expect(parsed.lanes?.bots).toMatchObject({ symbol: null, setup: null, waiting: [] });
+    expect(parsed.lanes?.brain).toMatchObject({ symbol: null, depth: false, why: null });
     expect(parsed.recording_switch).toEqual({ mode: 'on', source: 'operator', day: null, until: null, error: null });
     expect(normalizeIbkrStatus({ mode: 'sim', lanes: 'broken', recording_switch: { mode: 'maybe' } })).toMatchObject({
       lanes: null, recording_switch: null,

@@ -8,14 +8,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { LANE_WAIT_POLL_MS } from '../constantGroups/market_ui';
 import { bringLane, LaneWait, laneWatchersForTests, resetLaneWatchForTests } from './laneWait';
 
-const FRAME = { type: 'lane', symbol: 'ABC', message: 'Your Level 2 moved to TGHL.', lane: { you: 'TGHL', claude: null, bots: null } };
+const FRAME = { type: 'lane', symbol: 'ABC', message: 'Your Level 2 moved to TGHL.', lane: { you: 'TGHL', claude: null, brain: null } };
 const empty = { symbol: null, since: null, depth: false, tape: false, recording: false, error: null };
 
-function lanesAnswer(you: string | null, bots: string | null = null) {
+function lanesAnswer(you: string | null, brain: string | null = null) {
   return {
     ok: true, status: 200,
-    json: async () => ({ schema_version: 1, you: { ...empty, symbol: you }, claude: empty,
-      bots: { ...empty, symbol: bots, setup: null, why: null, waiting: [] }, recording_error: null }),
+    json: async () => ({ schema_version: 2, you: { ...empty, symbol: you }, claude: empty,
+      brain: { ...empty, symbol: brain, why: null }, recording_error: null }),
   };
 }
 
