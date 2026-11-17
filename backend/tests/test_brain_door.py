@@ -211,7 +211,7 @@ def test_an_entry_rests_its_stop_and_target_and_is_the_brains_on_the_books(paper
     assert {r["leg_role"] for r in rows} == {"parent", "target", "stop"}
     assert all(r["order_origin"] == "brain" and r["order_source"] == "bot" for r in rows)
     traders = paper.client.get("/api/traders").json()["traders"]["brain"]
-    assert traders["state"] == "buy_set" and traders["text"] == "Brain · Buying SMPL" and traders["connected"] is True
+    assert traders["state"] == "buy_set" and traders["text"] == "Brain · Buy set SMPL" and traders["connected"] is True
     assert traders["lane"] == {"symbol": "SMPL", "depth": True, "tape": True, "why": "first +50% print"}
     assert traders["note"]["text"] == "the first +50% print" and traders["today"]["loss_limit_usd"] == -500.0
 

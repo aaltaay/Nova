@@ -20,6 +20,9 @@
      three chips         1920  REC times           1440  the REC word
    Freeze, right of KILL (ibkr/freezeOrders.css, ADR 072), stays: under 1440 it
    sheds only its word (its icon and its hover still say it; frozen, it turns amber).
+   The traders' pills (Claude's and the brain's, ADR 072) keep their mark at every width: their words leave under
+   2240, the wordmark with them under 1920, and under 1700 the header switch too -- the hover says the words, and a
+   click opens the panel, which keeps the switch.
    A chip keeps its red dot and symbol; the tooltip keeps the time. The KILL
    pill, Freeze, the connection chip, the venue pills, the search, the account pill,
    the padlock and the gear stay. Under 820px the search drops to a second line
@@ -118,6 +121,29 @@
 
 @media (max-width: 1440px) {
   .freeze-orders__btn > span {
+    display: none;
+  }
+}
+
+/* The traders' pills: the words leave first, then the wordmark, then the header switch; the mark stays and a click
+   opens the panel, which keeps the switch. Measured on the demo build with both pills On and their longest words:
+   they fit beside a full search from 2240 px up. */
+@media (max-width: 2240px) {
+  .global-app-bar__left .claude-pill__text,
+  .global-app-bar__left .brain-pill__text {
+    display: none;
+  }
+}
+
+@media (max-width: 1920px) {
+  .global-app-bar__primary:has(.brain-pill, .claude-pill) .global-app-bar__wordmark {
+    display: none;
+  }
+}
+
+@media (max-width: 1700px) {
+  .global-app-bar__left .claude-pill .claude-switch,
+  .global-app-bar__left .brain-pill .brain-switch {
     display: none;
   }
 }

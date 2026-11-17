@@ -65,7 +65,7 @@ export function BrainPill() {
           aria-expanded={open}
           aria-haspopup="dialog"
           aria-label={brainPillText(words)}
-          title={tip}
+          title={tip ?? brainPillText(words)}
           onClick={() => setOpen(v => !v)}
         >
           <BrainMark />

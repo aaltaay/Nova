@@ -59,7 +59,7 @@ def fill_trader(out: dict[str, Any]) -> None:
         logger.warning("BRAIN view: Paper's orders could not be read", exc_info=True)
         resting = []
     if resting:
-        out["state"], out["text"] = TRADER_STATE_BUY_SET, f"Brain · Buying {resting[0].get('symbol')}"
+        out["state"], out["text"] = TRADER_STATE_BUY_SET, f"Brain · Buy set {resting[0].get('symbol')}"
     else:
         out["state"] = TRADER_STATE_WATCHING
         out["text"] = f"Brain · Watching {lane['symbol']}" if lane["symbol"] else "Brain · Watching"
