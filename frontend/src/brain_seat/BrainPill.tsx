@@ -5,14 +5,13 @@
  * not checking in, "Brain · On · its program is not running", so a brain that cannot trade never looks like one
  * that can. It carries the brain's On / Off switch: the switch flips at once, and a refused On (after its day stop,
  * after its flat-by time, on Live) is said under the pill in Nova's words. Clicking the words opens the panel (2).
- * It shows on every venue once the desk has read the traders view; never on the sample desk, which asks nothing.
+ * It shows on every venue once the desk has read the traders view (on Live the switch is simply refused, in the
+ * backend's words); never on the sample desk, which asks nothing.
  */
 import { useEffect, useRef, useState } from 'react';
 import { isSampleView } from '../sample_data/sampleNav';
 import { useBrainSeat } from './brainSeatStore';
-import {
-  BRAIN_NAME, BRAIN_NOT_RUNNING_TIP, BRAIN_UNREAD, brainPillText, brainPillWords, type BrainPillWords,
-} from './brainWords';
+import { BRAIN_NOT_RUNNING_TIP, brainPillText, brainPillWords, type BrainPillWords } from './brainWords';
 import { BrainMark } from './BrainMark';
 import { BrainPanel } from './BrainPanel';
 import { BrainSwitchButton, useBrainSwitch } from './BrainSwitch';
@@ -49,21 +48,9 @@ export function BrainPill() {
     };
   }, [open]);
 
-  if (isSampleView()) return null;
-  if (!status) {
-    // Never read, and the read failed: say so where the pill is, never "Off" -- the desk does not know.
-    return error ? (
-      <span className="brain-pill-wrap">
-        <span className="brain-pill brain-pill--wait" data-testid="brain-pill" data-state="unread" role="status"
-          title={`The brain: ${error}`}>
-          <span className="brain-pill__open brain-pill__open--plain">
-            <BrainMark />
-            <span className="brain-pill__text">{BRAIN_NAME}<i> · {BRAIN_UNREAD}</i></span>
-          </span>
-        </span>
-      </span>
-    ) : null;
-  }
+  // Nothing before the first answer, as Claude's pill: the desk does not know the brain's state, and never says "Off"
+  // for it. Once read, a read that fails keeps the last words and says why on the pill's tip and in the panel.
+  if (isSampleView() || !status) return null;
   const words = brainPillWords(status);
   const notRunning = status.on && status.connected === false;
   const tip = error ? `The brain: ${error}` : notRunning ? BRAIN_NOT_RUNNING_TIP : undefined;

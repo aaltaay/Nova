@@ -139,13 +139,12 @@ describe("the brain's pill, state by state", () => {
     expect(screen.queryByTestId('brain-pill')).toBeNull();
   });
 
-  it('a read that fails before any answer says so on the pill, never "Off"', async () => {
+  it('a read that fails before any answer draws no pill -- never "Off" for a brain the desk has not read', async () => {
     stubFetch(() => new Response('{}', { status: 500 }));
     render(<BrainPill />);
-    const pill = await screen.findByTestId('brain-pill');
-    expect(pill.textContent).toBe('Brain · Nova did not answer');
-    expect(pill.getAttribute('title')).toBe('The brain: The traders view answered 500.');
-    expect(screen.queryByTestId('brain-switch')).toBeNull();
+    await waitFor(() => expect(calls.length).toBeGreaterThan(0));
+    await act(async () => { await Promise.resolve(); });
+    expect(screen.queryByTestId('brain-pill')).toBeNull();
   });
 
   it('a read that fails later keeps the last words and says why on the pill', async () => {

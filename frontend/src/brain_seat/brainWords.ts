@@ -36,8 +36,6 @@ export const BRAIN_PANEL_LABEL = 'The brain';
 export const BRAIN_NOT_RUNNING = 'its program is not running';
 export const BRAIN_NOT_RUNNING_TIP = "The brain's program has not checked in, so it makes no new trade. Its stop and "
   + 'target keep resting, flat by still closes it, and nothing in Nova restarts it.';
-/** The pill before any read came back, when the read failed: Nova's answer is missing, the brain is not "Off". */
-export const BRAIN_UNREAD = 'Nova did not answer';
 
 export function fmtPrice(p: number): string {
   return Math.abs(p) < 1 ? p.toFixed(4) : p.toFixed(2);

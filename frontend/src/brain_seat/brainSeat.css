@@ -64,7 +64,6 @@
   font: inherit;
   cursor: pointer;
 }
-.brain-pill__open--plain { padding-right: 6px; cursor: default; }
 .brain-pill__text { font-weight: 600; }
 .brain-pill__text i { font-style: normal; font-weight: 500; color: var(--brain-muted); }
 /* A refused press, under the pill in Nova's words until it is read (a click puts it away). */
