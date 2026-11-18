@@ -1,14 +1,18 @@
 /**
- * Settings (frozen mockup R2-More): where the desk is trading, the two locks, the Level 2 marks, and how
+ * Settings (frozen mockup R2-More): where the desk is trading, the door to Notifications (mockup v1,
+ * 2026-11-18), the two locks, the Level 2 marks, and how
  * good the link to the PC is. The venue and the padlock are the desk's own; this screen only shows them
  * and asks the desk to change what the phone's door allows: the venue (the desk's own switch), the
  * padlock on Paper and Sim, and this phone's lock (ADR 070 amendment 2026-11-13).
  */
 import { useEffect, useState } from 'react';
-import { Lock, LockOpen, Smartphone } from 'lucide-react';
+import { Bell, BellOff, ChevronRight, Lock, LockOpen, Smartphone } from 'lucide-react';
 import { LINK_LIMIT_MS } from '../../phone_link';
 import { BackButton, LinkPill, PhoneScreen } from '../PhoneChrome';
 import { PIN_NOT_SET } from '../PhonePinSheet';
+import { go } from '../phoneRoute';
+import { notifySummary } from '../notify/phoneNotify';
+import { usePhoneNotify } from '../notify/usePhoneNotify';
 import { usePhoneSession, type Venue } from '../PhoneSession';
 import { setLevel2Marks, useLevel2Marks } from '../trade/level2MarksSwitch';
 import { lastLevel2Age } from '../trade/usePhoneTrade';
@@ -44,6 +48,7 @@ export function SettingsScreen() {
   const reachable = s.link.reachable !== false;
   const book = lastLevel2Age();
   const marksOn = useLevel2Marks();
+  const notify = usePhoneNotify();
   const padlockWords = s.armed == null
     ? 'Waiting for the desk'
     : s.armed
@@ -92,6 +97,19 @@ export function SettingsScreen() {
             })}
           </div>
           <div className="ph-set__note">A tap switches the desk too. From the phone, Live is look only.</div>
+        </section>
+
+        <section>
+          <button type="button" className="ph-card ph-set__row ph-set__door" data-testid="phone-settings-notify" onClick={() => go({ screen: 'notify' })}>
+            <span className="ph-set__icon" data-state={notify.thisPhone === 'on' ? 'open' : 'locked'}>
+              {notify.thisPhone === 'on' ? <Bell size={16} aria-hidden="true" /> : <BellOff size={16} aria-hidden="true" />}
+            </span>
+            <span className="ph-set__words">
+              <b>Notifications</b>
+              <i>{notify.error && !notify.view ? notify.error : notifySummary(notify.view, notify.thisPhone)}</i>
+            </span>
+            <span className="ph-set__go">Change <ChevronRight size={15} aria-hidden="true" /></span>
+          </button>
         </section>
 
         <section>

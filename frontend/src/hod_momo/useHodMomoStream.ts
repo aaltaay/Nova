@@ -39,8 +39,10 @@ const NO_FEED: HodMomoFeed = { alerts: [], totalToday: 0 };
  * frame this socket has not seen does.
  * While Sim replays (off the live edge) the socket stays open but a live
  * alert makes no sound (#486): the strip is showing another moment.
+ * `quiet` (default false, the desk): the page has no ping of its own, so a live alert is listed and
+ * nothing else -- the phone, which the PC notifies instead (ADR 070).
  */
-export function useHodMomoStream(): HodMomoStreamState {
+export function useHodMomoStream({ quiet = false }: { quiet?: boolean } = {}): HodMomoStreamState {
   const [feed, setFeed] = useState<HodMomoFeed>(NO_FEED);
   const [connected, setConnected] = useState(false);
   const [feedError, setFeedError] = useState<string | null>(null);
@@ -60,6 +62,10 @@ export function useHodMomoStream(): HodMomoStreamState {
   useEffect(() => {
     replayingRef.current = replaying;
   }, [replaying]);
+  const quietRef = useRef(quiet);
+  useEffect(() => {
+    quietRef.current = quiet;
+  }, [quiet]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -130,8 +136,10 @@ export function useHodMomoStream(): HodMomoStreamState {
             const key = alertIdentity(alert);
             if (seenIdsRef.current.has(key)) return;
             seenIdsRef.current.add(key);
-            noteHodMomoLiveAlert(alert, Date.now(), { replaying: replayingRef.current });
-            publishHodMomoLiveAlert(alert);
+            if (!quietRef.current) {
+              noteHodMomoLiveAlert(alert, Date.now(), { replaying: replayingRef.current });
+              publishHodMomoLiveAlert(alert);
+            }
             pendingRef.current.push(alert);
             scheduleFlush();
           }

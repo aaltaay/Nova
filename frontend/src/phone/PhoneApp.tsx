@@ -8,15 +8,18 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { IbkrAccountProvider } from '../ibkr/IbkrAccountContext';
 import { ScannerDataProvider } from '../scanner/ScannerDataContext';
 import { SettingsProvider } from '../settings/SettingsContext';
-import { LANDSCAPE, PORTRAIT, fitFor, useViewport } from './phoneFit';
-import { ROUTE_EVENT, parseRoute, tabOf, type PhoneRoute } from './phoneRoute';
+import { onPushOpen } from './notify/pushClient';
+import { KEYBOARD_UP, LANDSCAPE, PORTRAIT, fitFor, useViewport } from './phoneFit';
+import { ROUTE_EVENT, go, parseRoute, tabOf, type PhoneRoute } from './phoneRoute';
 import { PhoneSessionProvider } from './PhoneSession';
 import { PhoneWorkspaceProvider } from './PhoneWorkspace';
 import { AccountScreen } from './screens/AccountScreen';
 import { BookScreen } from './screens/BookScreen';
 import { ChartScreen } from './screens/ChartScreen';
 import { HomeScreen } from './screens/HomeScreen';
+import { NotifyScreen } from './screens/NotifyScreen';
 import { ScanScreen } from './screens/ScanScreen';
+import { SearchScreen } from './screens/SearchScreen';
 import { SettingsScreen } from './screens/SettingsScreen';
 import { StockScreen } from './screens/StockScreen';
 import { TopNineScreen } from './screens/TopNineScreen';
@@ -29,7 +32,10 @@ function usePhoneRoute(): PhoneRoute {
     window.addEventListener('hashchange', read);
     window.addEventListener('popstate', read);
     window.addEventListener(ROUTE_EVENT, read);
+    // A notification tapped while this page is open: the worker names the screen, the page goes there.
+    const stopPush = onPushOpen((hash) => go(parseRoute(hash)));
     return () => {
+      stopPush();
       window.removeEventListener('hashchange', read);
       window.removeEventListener('popstate', read);
       window.removeEventListener(ROUTE_EVENT, read);
@@ -44,6 +50,8 @@ function screenFor(route: PhoneRoute): ReactNode {
     case 'top9': return <TopNineScreen />;
     case 'account': return <AccountScreen />;
     case 'settings': return <SettingsScreen />;
+    case 'search': return <SearchScreen />;
+    case 'notify': return <NotifyScreen />;
     case 'trade': return <TradeScreen symbol={route.symbol} />;
     case 'stock': return <StockScreen key={route.symbol} symbol={route.symbol} />;
     case 'chart': return <ChartScreen key={route.symbol} symbol={route.symbol} />;
@@ -56,7 +64,8 @@ function screenFor(route: PhoneRoute): ReactNode {
 function PhoneFrame({ route, children }: { route: PhoneRoute; children: ReactNode }) {
   const viewport = useViewport();
   const sideways = viewport.width > viewport.height;
-  const fit = fitFor(viewport, route.screen === 'chart' && sideways ? LANDSCAPE : PORTRAIT);
+  const design = route.screen === 'chart' && sideways ? LANDSCAPE : route.screen === 'search' ? KEYBOARD_UP : PORTRAIT;
+  const fit = fitFor(viewport, design);
   return (
     <div
       className="ph-root"

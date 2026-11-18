@@ -12,6 +12,11 @@ export interface DesignSize {
 
 export const PORTRAIT: DesignSize = { width: 360, height: 720 };
 export const LANDSCAPE: DesignSize = { width: 740, height: 320 };
+/**
+ * Search, with the phone's keyboard up: the keyboard takes the lower part of the viewport, so the screen is
+ * drawn to fit what is left above it (its field and at least five rows) instead of shrinking the whole page.
+ */
+export const KEYBOARD_UP: DesignSize = { width: 360, height: 280 };
 
 export interface Fit {
   /** 1 when the viewport is at least the drawn size; under 1 shrinks the page. */

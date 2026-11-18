@@ -13,6 +13,7 @@ from typing import Any
 
 from execution import fill_claims, inflight
 from ibkr import session_fills
+from phone_notify.tell import tell as tell_phone
 
 logger = logging.getLogger("execution.telemetry")
 
@@ -83,6 +84,7 @@ def make_handlers(get_watch, ib: Any = None):
     def on_exec_details(trade, fill) -> None:
         try:
             session_fills.note_heard(fill)
+            tell_phone("live_fill", trade, fill)      # the operator's phone (ADR 070); reads nothing here, never raises
             oid = int(trade.order.orderId)
             w = get_watch(oid)
             if w is None:

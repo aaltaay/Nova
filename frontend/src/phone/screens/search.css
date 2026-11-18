@@ -1,0 +1,117 @@
+/* Search (mockup v1, 2026-11-18): Scan's header field, and the screen it opens with the keyboard up. */
+.ph-search {
+  flex: 1 1 0;
+  min-width: 0;
+  height: 30px;
+  padding: 0 10px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  border-radius: 15px;
+  background: var(--ph-soft);
+  border: 1px solid var(--ph-hair);
+  color: var(--ph-muted);
+  font-size: 13px;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.ph-search > svg { flex-shrink: 0; }
+.ph-search.is-on { border-color: var(--ph-accent); background: rgba(92, 200, 250, 0.08); }
+.ph-search__input {
+  flex: 1 1 0;
+  min-width: 0;
+  height: 28px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  background: none;
+  color: var(--ph-text);
+  caret-color: var(--ph-accent);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  user-select: text;
+}
+.ph-search__input::placeholder { color: var(--ph-muted); font-size: 13px; font-weight: 400; letter-spacing: 0; }
+.ph-search__clear { flex-shrink: 0; width: 24px; height: 28px; display: flex; align-items: center; justify-content: center; color: var(--ph-faint); }
+.ph-search__cancel { flex-shrink: 0; height: 38px; padding: 0 6px; color: var(--ph-accent-ink); font-size: 13px; font-weight: 600; }
+.ph-search__head { gap: 8px; }
+
+.ph-find {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.ph-find__label {
+  height: 26px;
+  flex-shrink: 0;
+  padding: 8px 14px 0;
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  overflow: hidden;
+}
+.ph-find__label > span { overflow: hidden; text-overflow: ellipsis; }
+.ph-find__row {
+  position: relative;
+  height: 42px;
+  flex-shrink: 0;
+  padding: 0 12px 0 10px;
+  display: grid;
+  grid-template-columns: 65px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 9px;
+  border-top: 1px solid var(--ph-hair);
+}
+.ph-find__name { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.ph-find__name b {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ph-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ph-find__name i {
+  min-height: 12px;
+  font-style: normal;
+  font-size: 10px;
+  color: var(--ph-faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ph-find__name i em { font-style: normal; font-weight: 600; color: var(--ph-accent); }
+.ph-find__chg {
+  padding: 2px 5px;
+  border-radius: 6px;
+  background: var(--ph-soft);
+  color: var(--ph-dim);
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.ph-find__chg[data-tone='good'] { background: var(--ph-good-bg); color: var(--ph-good); }
+.ph-find__chg[data-tone='bad'] { background: var(--ph-bad-bg); color: var(--ph-bad); }
+.ph-find__none { font-size: 11px; color: var(--ph-faint); white-space: nowrap; }
+.ph-find__chip mark { background: none; color: var(--ph-accent); }
+.ph-find__foot {
+  height: 26px;
+  flex-shrink: 0;
+  margin-top: auto;
+  padding: 0 14px;
+  display: flex;
+  align-items: center;
+  border-top: 1px solid var(--ph-hair);
+  font-size: 11px;
+  color: var(--ph-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ph-find__foot[data-tone='warn'] { color: var(--ph-warn); }

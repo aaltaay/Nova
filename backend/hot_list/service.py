@@ -35,6 +35,7 @@ from constants_hot_list import (
 )
 from hot_list import store
 from hot_list.errors import HotListError
+from phone_notify.tell import tell as tell_phone
 
 logger = logging.getLogger(__name__)
 
@@ -187,6 +188,8 @@ def add_auto(entries: list[dict[str, Any]], *, now: float | None = None) -> list
     for entry in added:
         _audit(HOT_LIST_EVENT_AUTO, f"{entry['symbol']} led the Gainers board (rank {entry.get('rank')}): on today's "
                "hot list for the day", {k: entry.get(k) for k in ("symbol", "rank", "change_pct", "board")})
+    if added:
+        tell_phone("new_leaders", added, doc.get("auto_n"))
     return [e["symbol"] for e in added]
 
 

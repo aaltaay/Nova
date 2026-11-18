@@ -239,9 +239,11 @@ test('a Scan list that is not on the phone yet is locked and says why', async ({
   await mockPhoneApi(page);
   await open(page, 'scan');
   await page.getByTestId('phone-scan-more').click();
-  const hod = page.getByRole('menuitemradio', { name: 'HOD Momo' });
-  await expect(hod).toBeDisabled();
-  await expect(hod).toHaveAttribute('data-why', /Not on the phone yet/);
+  // HOD Momo and Running Up opened on 2026-11-18 (phone-search-alerts.spec.ts); Vol boost and Setups have not.
+  const locked = page.getByRole('menuitemradio', { name: 'Vol boost' });
+  await expect(locked).toBeDisabled();
+  await expect(locked).toHaveAttribute('data-why', /Not on the phone yet/);
+  await expect(page.getByRole('menuitemradio', { name: 'HOD Momo' })).toBeEnabled();
   await page.getByRole('menuitemradio', { name: 'Large Cap' }).click();
   await expect(page.getByTestId('phone-scan-count')).toHaveText('1 to 5 of 5');
   expect(await phoneOverflow(page)).toEqual([]);
