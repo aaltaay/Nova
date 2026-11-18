@@ -247,6 +247,31 @@ turn-on, and if i turn it off, it just honor keep honoring its schedule". Decisi
 Unchanged: only you press the switch (Claude, the brain's program and the phone cannot); the brain trades Paper
 only and never Live; a wake sends no order by itself -- the door's own checks stand before every entry.
 
+## Amendment 3 (2026-11-18): while the desk is on Live, Claude and the brain pause
+
+The operator, 2026-11-18: "Make sure when the brain is active, it doesn't activate it on live account. those
+operations are separate ... live means this is real money, i want it to be independent". Shown what is built and
+three choices (pause as now, keep trading Paper in the background, switch Off on the way to Live), they chose
+**pause, as now**. Decisions 5 and 10 are unchanged; this says what a pause is:
+
+- **No new trade.** While the desk is on Live an AI trader opens nothing: its door refuses (`BRAIN_NOT_PAPER`,
+  Claude's own), `execution.venue_door` refuses its origin off Paper, and nothing of its may name Live. Its switch
+  stays as it was; going to Live never switches it Off and never hands a trade over.
+- **Its open Paper trade stays its own.** The stop and target keep resting and fill on Paper, its close and cancel
+  go, and flat by still sells.
+- **It may raise its own stop** (new). A raise of the trader's own resting stop on Paper goes whatever the desk
+  shows, like its close: it only ever takes risk off. The door checks it is that trader's own stop, on a stock not
+  handed to you, and that the price is higher (`execution.stop_raise`, `execution.md`). Before this a stop raise
+  was refused while the desk showed Live.
+- **The lanes do not move.** Lane 2 stays Claude's and lane 3 the brain's on every venue (ADR 071); your lane is
+  yours on Live as on Paper.
+- **Back on Paper it carries on.** The venue change disarmed the desk (ADR 018); the brain arms Paper itself as an
+  agent, never over a padlock you locked.
+
+Rejected: the brain trading Paper while the desk is on Live (Paper would need its own arming, apart from the
+desk's latch, and its orders would share the door with Live's), and Live switching the traders Off (it hands a
+Paper trade to the operator while they trade real money).
+
 ## Consequences
 
 - Each trader's record is its own, and a takeover never moves P&L between records.

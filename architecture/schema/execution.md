@@ -250,6 +250,17 @@ sends `bot`, `auto_entry`, `bot_api`, `live_trader` or `close_bots` again; their
 Earlier bots. Sent by adds "The brain", "Loss limit · Claude", "Loss limit · The brain" and "Takeover". The owner
 refusals at the door (`OWNERS_TRADERS_STOCK`, `OWNERS_TRADER_ON`, `OWNERS_BUDGET`) are in `traders.md`.
 
+**A trader's stop raise** (ADR 072 Amendment 3; owner `execution/stop_raise.py`). While the desk is on Live or Sim,
+Claude and the brain open nothing, and their open Paper trade keeps its exits. One more send of theirs may name
+Paper whatever the desk shows, beside their closes and cancels: `{operation: "replace", source: "cancel_working",
+origin: "claude" | "brain", order_id, stop_price, target_venue: "paper"}` with no `limit_price` and no
+`resize_qty`. It is a protective source, so it goes while the desk is disarmed, as a close does. The door refuses
+it `TARGET_VENUE_REFUSED`, in words, unless all of these hold on Paper's own book: the order is working; it is that
+trader's own (`order_origin`) resting stop leg, a SELL; its stock is not handed to you; and the new `stop_price` is
+above the stop it replaces. Paper's book unread is a refusal, never a pass. Named to Live or Sim it is refused like
+any other send of theirs. Anything else shaped like it (another origin, a limit price, a new size) is not a stop
+raise and meets the rule above: only the kill switch's cancels and Nova's own closes name a venue.
+
 **Built: retired senders are refused (ADR 072, `execution/retired_senders.py`).** Since the bots retired, the door
 refuses `BOTS_RETIRED`, in words and before anything is sent, a `place` / `bracket` / `replace` / `exit_oco` whose
 `origin` is `bot`, `auto_entry`, `approve`, `bot_api`, `nova_exit` or `live_trader`, or whose `source` is `bot` with
