@@ -7,6 +7,8 @@
 - **A program that stopped answering** is said once on the brain's stream. Nothing is sold for it: its stop and
   target keep resting.
 - **Fills** are said on the stream as the brain's position changes.
+- **The morning wake.** On a trading day Nova turns the brain's switch On once, unless you set it that day
+  (``traders.wake``, ADR 072 Amendment 2).
 
 A failed pass is logged and the next one runs; nothing here opens a position.
 """
@@ -71,8 +73,18 @@ def _fills() -> None:
             session.event("close", f"Sold {was - now_qty:g} {sym}; {rest}", sym)
 
 
+def _wake() -> None:
+    from traders import wake
+
+    try:
+        wake.run_pass()
+    except Exception:
+        logger.exception("BRAIN watcher: the morning wake failed; trying again next pass")
+
+
 async def run_pass(now: float | None = None) -> None:
     t = asyncio.get_running_loop().time() if now is None else float(now)
+    _wake()
     if session.went_silent():
         session.event("silent", "The brain's program stopped answering. Nothing is sold for it: its stop and target "
                                 "keep resting, and flat by still closes it.")

@@ -92,6 +92,7 @@ export function readBrainSeat(raw: unknown): BrainSeatStatus | null {
     note: str(note.text) ? { text: String(note.text), at: num(note.at) ?? 0 } : null,
     connected: typeof r.connected === 'boolean' ? r.connected : null,
     reading: keep(list(r.reading), reading),
+    wakes: r.wakes === true,
     events: keep(list(r.events), event),
     read_error: str(top.error),
     generated_at: num(top.generated_at) ?? 0,

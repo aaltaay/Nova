@@ -110,6 +110,9 @@ def trader_view(trader: str, switch: dict[str, Any], now: float) -> dict[str, An
         out["text"] = (f"{_SHORT[trader]} · Done for today{_money(today['pnl'])}" if out["done_for_today"]
                        else f"{_SHORT[trader]} · Off{tail}")
     if trader == OWNER_BRAIN:
+        from traders import wake
+
+        out["wakes"] = wake.wakes(trader)
         _brain(out)
     return out
 

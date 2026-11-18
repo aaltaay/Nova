@@ -15,7 +15,7 @@ from pydantic import BaseModel
 
 from agent_desk.routes import require_local
 from auth import require_agent_key
-from constants_owners import AI_TRADERS, OWNER_BRAIN, OWNER_NAMES
+from constants_owners import AI_TRADERS, OWNER_BRAIN
 from constants_traders import TRADER_OPERATOR_ONLY, TRADER_UNKNOWN
 from traders import off, switches, view
 
@@ -41,7 +41,7 @@ async def put_switch(trader: str, body: SwitchBody,
                      x_nova_brain_session: str | None = Header(default=None)) -> dict[str, Any]:
     if trader not in AI_TRADERS:
         raise _refuse(404, TRADER_UNKNOWN, f"Nova has no trader called {trader!r}: Claude or the brain")
-    name = OWNER_NAMES[trader]
+    name = switches.said(trader)
     if x_agent_seat is not None or x_nova_brain_session is not None:
         raise _refuse(409, TRADER_OPERATOR_ONLY, f"Only you switch {name} On or Off, from the desk.")
     if body.on:
@@ -54,4 +54,7 @@ async def put_switch(trader: str, body: SwitchBody,
             brain_session.event("switch_on", "You switched the brain On")
     elif switches.is_on(trader):
         await off.turn_off(trader, "you")
+    else:
+        # Off while already Off is still your word for the day: recorded, so the morning wake leaves it alone.
+        switches.set_switch(trader, False, "you")
     return view.snapshot()

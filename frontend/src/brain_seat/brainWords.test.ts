@@ -141,6 +141,17 @@ describe("the panel's rows", () => {
     });
   });
 
+  it('while Nova wakes the brain each trading morning, both helps say Off is for today', () => {
+    expect(readBrainSeat(tradersAnswer())?.wakes).toBe(false);          // a backend that does not say
+    const on = brainHelp(brainStatus({ ...BRAIN_WATCHING, wakes: true }));
+    expect(on).toEqual({ lead: 'Off:', text: `${BRAIN_OFF_HELP_GENERIC} It turns itself On again the next trading morning.` });
+    expect(brainHelp(brainStatus({ ...BRAIN_OFF, wakes: true })).text)
+      .toBe('the brain may trade again. A trade it handed you stays yours until you close it. It turns itself On again the next trading morning.');
+    const refused = { reason: 'TRADER_PAST_FLAT_BY', error: "It is past the brain's flat-by time (15:55 ET): it turns On by itself the next trading morning." };
+    expect(brainHelp(brainStatus({ ...BRAIN_OFF, wakes: true, can_turn_on: false, why_not_on: refused })))
+      .toEqual({ lead: null, text: refused.error });
+  });
+
   it("the switch's tip is the refusal On would meet, else what the flip does", () => {
     expect(brainSwitchTip(brainStatus(), true)).toBe('Waiting for Nova to answer your last press.');
     expect(brainSwitchTip(brainStatus(), false)).toMatch(/^The brain's switch: On\. Off: no new trades\./);

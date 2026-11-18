@@ -76,6 +76,14 @@ a handed position (`OWNERS_TRADERS_STOCK`). A retired bot's shares still open at
   earlier desk day, a missing one, an unknown `schema_version` or an unreadable one reads every switch Off (with
   `error` saying why for the last two). The 04:00 ET rollover writes every switch Off. A restart within the day reads
   the file back, so a restart never hands a trade over by itself.
+- **The brain wakes by itself** (`backend/traders/wake.py`, ADR 072 Amendment 2). On an exchange day
+  (`market.is_exchange_day`), from 04:00 ET, Nova turns the brain's switch On once, `by: "schedule"`, at the first
+  moment On is not refused and the day's row is untouched (`on: false, at: null`); the check and the write are one
+  step (`switches.turn_on_untouched`). Any press that day sets `at` -- an Off pressed while it was already Off
+  too -- so your Off holds until the next exchange day's 04:00 ET. A file Nova cannot read, or of an unknown
+  version, is never woken over or rewritten by the wake: it may hold your Off, and `error` stays on the pill
+  until your next press writes a fresh file. It is said on the brain's stream (`switch_on`). `NOVA_BRAIN_WAKES=0` in `.env` ends the schedule.
+  Run by the brain's watcher every `BRAIN_TICK_SEC`. Claude never wakes by itself.
 - **On** is refused `409` with `{reason, error}`: `TRADER_LIVE` (the desk is on Live), `TRADER_DAY_STOP` (the
   trader's day stop was reached today, decision 8), `TRADER_PAST_FLAT_BY` (at or after its flat-by time),
   `TRADER_OPERATOR_ONLY` (a request carrying `X-Agent-Seat`, or the brain's session key), `REMOTE_VIEW_ONLY` (the
@@ -107,8 +115,9 @@ defaults with `error`; the next save writes a fresh file. A trader's daily loss 
   ("Brain · In XLAB +$42.00", "Brain · Off · XLAB is yours to close", "Brain · Done for today -$500"). Claude's
   `state`, `symbol`, `lane` and `note` are the seat's (`agent-trader.md`); the brain's are its door's (`bot.md`): `symbol` and `lane` from lane 3 (`lane.why` its
   words for naming the stock), `note` its last note, `state` `off`, `watching`, `buy_set`, `in_trade` or `done`, and
-  three fields only the brain has: `connected` (its program's heartbeat is fresh), `reading: [{symbol, text, source:
-  "lane" | "level1"}]` and `events` (`bot.md`). On and not connected reads "Brain · On · its program is not running". `position` and `handed` are the desk venue's account
+  four fields only the brain has: `connected` (its program's heartbeat is fresh), `reading: [{symbol, text, source:
+  "lane" | "level1"}]`, `events` (`bot.md`) and `wakes` (boolean: it turns itself On each trading morning; past its
+  flat by `why_not_on.error` then ends "it turns On by itself the next trading morning"). On and not connected reads "Brain · On · its program is not running". `position` and `handed` are the desk venue's account
   (Paper while the desk is on Live); `today.loss_limit_usd` is each trader's own day stop in code until the loss lines land.
 - `PUT /api/traders/{trader}/switch {on: boolean}` -> the `GET` shape, or the refusal above. `404 TRADER_UNKNOWN`
   for another name.
