@@ -107,6 +107,16 @@ test('HOD Momo and Running Up open under More: one row per stock, paged, nothing
   // The list is remembered, as every Scan list is.
   await page.reload();
   await expect(page.getByTestId('phone-hod-hod_momo')).toBeVisible();
+  // Scan opened on an alert list: a board picked now still fills the screen with rows (it paged one row at
+  // a time, its box never measured; review of PR 1339). And back again.
+  await page.getByRole('button', { name: 'Gainers', exact: true }).click();
+  await expect(page.getByTestId('phone-scan-count')).toHaveText(/^1 to 1[0-9] of 27/);
+  expect(await phoneOverflow(page)).toEqual([]);
+  await page.getByTestId('phone-scan-more').click();
+  await page.getByRole('menuitemradio', { name: 'HOD Momo' }).click();
+  await expect(page.getByTestId('phone-hod-count')).toHaveText(/^1 to 1[0-9] of 14$/);
+  await page.getByRole('button', { name: 'Gappers', exact: true }).click();
+  await expect(page.getByTestId('phone-scan-count')).toHaveText(/^1 to 1[0-9] of 34/);
 
   await page.getByTestId('phone-scan-more').click();
   await page.getByRole('menuitemradio', { name: 'Running Up' }).click();
@@ -218,4 +228,33 @@ test('a phone that blocked Nova, and a PC from before notifications, each say so
   await expect(page.getByTestId('phone-notify-absent')).toContainText('older than this page');
   await expect(page.getByTestId('phone-notify-hod')).toHaveCount(0);
   expect(await phoneOverflow(page)).toEqual([]);
+});
+
+test('in a real browser the notification worker registers and becomes active, and a failed subscribe is said', async ({ page }) => {
+  // The real worker under /phone/, whose scope does not hold /phone.html: turning notifications on used to wait
+  // for ever on `navigator.serviceWorker.ready` (review of PR 1339). Only Android's answer is stood in for (a
+  // headless browser always says "blocked"); the registration, the worker and the push manager are the
+  // browser's own. A test browser has no push service, so the subscribe itself is refused, and the banner must
+  // say so instead of hanging.
+  await page.addInitScript(() => {
+    Object.defineProperty(Notification, 'permission', { configurable: true, get: () => 'granted' });
+    Notification.requestPermission = async () => 'granted';
+  });
+  const api = await mockPhoneApi(page);
+  await open(page, 'notify');
+  const phone = page.getByRole('switch', { name: /^Notify this phone/ });
+  await expect(phone).toBeEnabled();
+  await phone.click();
+  await typePin(page);
+  await page.getByTestId('phone-banner').click();
+  await phone.click();
+  await expect.poll(() => page.evaluate(async () => {
+    const reg = await navigator.serviceWorker.getRegistration('/phone/');
+    return reg?.active ? { scope: new URL(reg.scope).pathname, script: new URL(reg.active.scriptURL).pathname } : null;
+  }), { timeout: 15_000 }).toEqual({ scope: '/phone/', script: '/phone/sw.js' });
+  // Past the worker: either the browser gave a push address (a browser with a push service) or it refused, in words.
+  await expect(page.getByTestId('phone-banner')).toContainText(/This phone gets notifications|NOT DONE · Notify this phone/, { timeout: 20_000 });
+  // The page did not stop at the worker: it asked the PC for its key and reached the browser's own subscribe.
+  expect(api.writes).toContain('POST /api/phone/notify/key');
+  await expect(page.getByTestId('phone-banner')).not.toContainText('did not start');
 });

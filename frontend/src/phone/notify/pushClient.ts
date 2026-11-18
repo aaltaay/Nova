@@ -55,6 +55,37 @@ async function registration(): Promise<ServiceWorkerRegistration> {
   return existing ?? navigator.serviceWorker.register(PUSH_WORKER_URL, { scope: PUSH_WORKER_SCOPE });
 }
 
+/** How long a freshly registered worker is given to start before the tap is answered with a refusal. */
+export const WORKER_START_MS = 10_000;
+
+/**
+ * Wait until the registration's own worker is active: a browser subscribes only an active worker.
+ *
+ * Never `navigator.serviceWorker.ready`: that waits for a worker whose scope holds *this page*, and the
+ * phone's worker is scoped to `/phone/`, which does not hold `/phone.html`, so it would wait for ever
+ * (review of PR 1339).
+ */
+export function workerActive(reg: Pick<ServiceWorkerRegistration, 'active' | 'installing' | 'waiting'>, waitMs = WORKER_START_MS): Promise<void> {
+  if (reg.active) return Promise.resolve();
+  const worker = reg.installing ?? reg.waiting;
+  if (!worker) return Promise.reject(new Error('the notification worker did not install'));
+  return new Promise<void>((resolve, reject) => {
+    const timer = setTimeout(() => done(new Error('the notification worker did not start in time')), waitMs);
+    function done(err?: Error): void {
+      clearTimeout(timer);
+      worker?.removeEventListener('statechange', check);
+      if (err) reject(err);
+      else resolve();
+    }
+    function check(): void {
+      if (worker?.state === 'activated') done();
+      else if (worker?.state === 'redundant') done(new Error('the notification worker was replaced before it started'));
+    }
+    worker.addEventListener('statechange', check);
+    check();
+  });
+}
+
 /** This phone's push address when it has one; null when it never subscribed (or cannot). */
 export async function currentAddress(): Promise<PushAddress | null> {
   if (pushSupport()) return null;
@@ -91,7 +122,7 @@ export async function subscribePush(publicKey: string): Promise<SubscribeResult>
       };
     }
     const reg = await registration();
-    await navigator.serviceWorker.ready.catch(() => undefined);
+    await workerActive(reg);
     const key = keyBytes(publicKey);
     let sub = await reg.pushManager.getSubscription();
     if (sub) {

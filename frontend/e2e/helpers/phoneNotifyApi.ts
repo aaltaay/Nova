@@ -147,6 +147,9 @@ export async function fakePush(page: Page, permission: 'granted' | 'denied', sta
       unsubscribe: async () => { calls.unsubscribed += 1; sub = null; return true; },
     });
     const registration = {
+      active: {},
+      installing: null,
+      waiting: null,
       pushManager: {
         getSubscription: async () => sub,
         subscribe: async (opts: { applicationServerKey: Uint8Array }) => {
@@ -158,7 +161,8 @@ export async function fakePush(page: Page, permission: 'granted' | 'denied', sta
     };
     let registered = false;
     const worker = {
-      ready: Promise.resolve(registration),
+      // As on the real page: this worker's scope does not hold /phone.html, so `ready` never resolves.
+      ready: new Promise(() => undefined),
       getRegistration: async () => (registered ? registration : undefined),
       register: async (url: string) => { calls.registered.push(url); registered = true; return registration; },
       addEventListener: () => undefined,

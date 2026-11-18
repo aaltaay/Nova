@@ -16,7 +16,7 @@ import {
   type NotifySettings,
   type NotifyView,
 } from './notify/phoneNotify';
-import { keyBytes } from './notify/pushClient';
+import { keyBytes, workerActive } from './notify/pushClient';
 import { hodRowIsNew, hodShortName, phoneHodRows } from './phoneHod';
 import { parseRoute, routeHash, tabOf } from './phoneRoute';
 import { hotOptions, searchFootText, searchRows, searchTag, shortCompanyName, type SearchTagSources } from './phoneSearch';
@@ -183,6 +183,44 @@ describe('notification settings', () => {
 
   it('turns the PC\'s public key into the bytes the browser subscribes with', () => {
     expect([...keyBytes('AQID-_8')]).toEqual([1, 2, 3, 251, 255]);
+  });
+});
+
+describe('waiting for the notification worker', () => {
+  function fakeWorker(state: string) {
+    const listeners = new Set<() => void>();
+    return {
+      state,
+      addEventListener: (_: string, fn: () => void) => listeners.add(fn),
+      removeEventListener: (_: string, fn: () => void) => listeners.delete(fn),
+      become(next: string) {
+        this.state = next;
+        listeners.forEach((fn) => fn());
+      },
+      listeners,
+    };
+  }
+  type Reg = Parameters<typeof workerActive>[0];
+
+  it('answers at once for an active worker, and when an installing one activates', async () => {
+    await expect(workerActive({ active: {}, installing: null, waiting: null } as unknown as Reg)).resolves.toBeUndefined();
+    const worker = fakeWorker('installing');
+    const waiting = workerActive({ active: null, installing: worker, waiting: null } as unknown as Reg, 1_000);
+    worker.become('installed');
+    worker.become('activated');
+    await expect(waiting).resolves.toBeUndefined();
+    expect(worker.listeners.size).toBe(0);
+  });
+
+  it('refuses in words instead of waiting for ever', async () => {
+    await expect(workerActive({ active: null, installing: null, waiting: null } as unknown as Reg)).rejects.toThrow('did not install');
+    const replaced = fakeWorker('installing');
+    const gone = workerActive({ active: null, installing: replaced, waiting: null } as unknown as Reg, 1_000);
+    replaced.become('redundant');
+    await expect(gone).rejects.toThrow('replaced before it started');
+    const stuck = fakeWorker('installing');
+    await expect(workerActive({ active: null, installing: stuck, waiting: null } as unknown as Reg, 20)).rejects.toThrow('did not start in time');
+    expect(stuck.listeners.size).toBe(0);
   });
 });
 

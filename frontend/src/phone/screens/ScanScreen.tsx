@@ -129,7 +129,8 @@ export function ScanScreen() {
   const [page, setPage] = useState(0);
   const [menu, setMenu] = useState<'more' | 'filter' | null>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
-  const perPage = useRowsThatFit(bodyRef, ROW_PX);
+  // The rows box is not on the page while an alert list is up: measure it again when it comes back.
+  const perPage = useRowsThatFit(bodyRef, ROW_PX, isHodList(list));
 
   const lists = useMemo(() => ({
     gappers: feed.gappers,
