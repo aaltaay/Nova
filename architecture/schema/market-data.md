@@ -417,7 +417,14 @@ recordings are hurting me more than helping me".
   of its own, kept apart from the lane's all-exchange Level 2: `ibkr.depth`, the Level 2 pane, Paper fills, the
   book watcher, a print's side, the view gate and the recordings never read it. A lane's own line comes first: with
   three different stocks on the lanes it waits (`error` says so), and it ends before a lane's line is asked for; a
-  refusal by IBKR is asked again after `IBKR_VENUE_BOOK_RETRY_SEC` (15 s). On a replaying desk there is none.
+  refusal by IBKR is asked again after `IBKR_VENUE_BOOK_RETRY_SEC` (15 s). On a replaying desk there is none: a
+  book already open ends when the desk goes to a recorded session.
+  - **Its request is let go by the Level 2 rule** ("Lines IBKR answers after Nova cancelled them" above): cancelled
+    only once IBKR answered it (a row, 2152, a 317 reset); forgotten without a cancel when IBKR refused it; held
+    while unanswered, the cancel going out when IBKR answers, and no other Nasdaq request is made meanwhile (the
+    same stock wanted again takes the held request back). After a reconnect it follows the line's fate: kept by
+    IBKR (1102) it lives on and is not asked twice; lost (1101) it is cancelled if answered, else forgotten; a
+    dropped socket's request is forgotten. Nothing is sent while IBKR is not READY.
   - `brain.nasdaq_book` on `GET /api/ibkr/lanes`: `{venue: "NASDAQ", symbol: string | null, up: boolean, rows:
     boolean, seq: number, at: number | null, error: string | null}` (`symbol`: the brain's stock; `up`: asked on
     this IBKR session; `rows`: a book with a row has arrived; `error`: why it is not up, in words).

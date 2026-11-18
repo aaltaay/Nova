@@ -230,6 +230,16 @@ def _cancel(ib: Any, req_id: int, sub: Any, symbol: str, smart: bool) -> bool:
     return True
 
 
+def cancel_answered(ib: Any, req_id: int, sub: Any, symbol: str, smart: bool) -> bool:
+    """The cancel of a Level 2 request of another kind (the brain's Nasdaq book, ``ibkr.venue_book``).
+
+    Its owner decides by the same rule and calls this only once IBKR has answered the request, so the one
+    Level 2 cancel Nova sends still lives here and is remembered for the late-grant check. False when it
+    could not be sent: the request stays registered and its owner holds it.
+    """
+    return _cancel(ib, req_id, sub, symbol, smart)
+
+
 def _late_grant(ib: Any, req_id: int, now: float) -> bool:
     """IBKR granted a request Nova had cancelled on this connection: the rule failed. True when it was one."""
     connection = _connection(ib)
