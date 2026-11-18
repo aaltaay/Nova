@@ -16,6 +16,16 @@ export const REVIEW_SOURCE_NOTES: Record<string, string> = {
   'massive-trades': 'Massive tape -- built from the consolidated trades',
   'massive-minutes': 'Massive minute bars',
   'massive-daily': "Massive daily bars -- this day's candle from its minutes",
+  // A day the Massive files do not hold, read from the running desk (tools/nova_review_desk.py).
+  'ibkr-history': 'IBKR history, from the desk',
+  'ibkr-daily': 'IBKR daily bars, from the desk',   // short: the longer Massive note is cut off in the pane header
+};
+
+/** The header's word for where the whole page came from (the payload's top-level `source`). */
+export const REVIEW_ORIGIN_LABELS: Record<string, string> = {
+  'front-door': 'Front door',
+  'desk-ibkr': 'IBKR, from the desk',
+  fixture: 'Fixture',
 };
 export const REVIEW_FIXTURE_NOTE = 'Sample -- not a recorded day';
 

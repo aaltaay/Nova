@@ -28,10 +28,25 @@ function launchOptions() {
   return { headless: true };
 }
 
+/** The page said it cannot draw (no data for the day, a bad link). Its own code and words are the answer. */
+class ReviewPageError extends Error {
+  constructor(code, detail) {
+    super(detail);
+    this.code = /^REVIEW_[A-Z_]+$/.test(code || '') ? code : 'REVIEW_PAGE_ERROR';
+    this.detail = detail;
+  }
+}
+
 async function shot(page, url, dest) {
   await page.setViewportSize({ width: 1920, height: 1080 });
   await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
-  await page.waitForSelector('[data-review-ready="1"]', { timeout: 25000 });
+  // Painted, or the page gave up: waiting only for "1" turned every missing day into a 25 s timeout with no reason.
+  const settled = await page.waitForSelector('[data-review-ready="1"], [data-review-ready="error"]', { timeout: 25000 });
+  if ((await settled.getAttribute('data-review-ready')) === 'error') {
+    const code = await settled.getAttribute('data-review-error');
+    const words = await page.locator('.review-error').first().textContent({ timeout: 1000 }).catch(() => null);
+    throw new ReviewPageError(code, (words || 'the review page could not draw this day').trim());
+  }
   await page.waitForTimeout(400);
   await page.screenshot({ path: dest, fullPage: false });
 }
@@ -62,8 +77,8 @@ async function serve() {
       process.stdout.write(`${JSON.stringify({
         ok: false,
         id: req && req.id,
-        error: 'REVIEW_SHOT_FAILED',
-        detail: String(err),
+        error: err instanceof ReviewPageError ? err.code : 'REVIEW_SHOT_FAILED',
+        detail: err instanceof ReviewPageError ? err.detail : String(err),
       })}\n`);
     }
   }
@@ -79,10 +94,11 @@ try {
   }
 } catch (err) {
   const missing = /Cannot find module/.test(String(err));
+  const page = err instanceof ReviewPageError;
   process.stdout.write(`${JSON.stringify({
     ok: false,
-    error: missing ? 'REVIEW_SHOT_UNAVAILABLE' : 'REVIEW_SHOT_FAILED',
-    detail: String(err),
+    error: page ? err.code : missing ? 'REVIEW_SHOT_UNAVAILABLE' : 'REVIEW_SHOT_FAILED',
+    detail: page ? err.detail : String(err),
   })}\n`);
   process.exit(missing ? 2 : 1);
 }

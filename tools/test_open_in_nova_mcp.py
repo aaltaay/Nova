@@ -256,12 +256,12 @@ def test_review_open_says_when_the_desk_is_not_running(monkeypatch):
     assert b"Run Nova Desktop.bat" in raw
 
 
-def test_host_allowlist_and_engine_version_four():
+def test_host_allowlist_and_engine_version_five():
     import nova_review_open as review_open
 
-    assert engine.ENGINE_VERSION == "4"
-    current = {"ok": True, "service": review_http.SERVICE, "version": "4"}
-    stale = {"ok": True, "service": review_http.SERVICE, "version": "3"}
+    assert engine.ENGINE_VERSION == "5"
+    current = {"ok": True, "service": review_http.SERVICE, "version": "5"}
+    stale = {"ok": True, "service": review_http.SERVICE, "version": "4"}
     assert engine.engine_ok(current) is True
     assert engine.engine_ok(stale) is False
     assert engine.this_pc_host("127.0.0.1") is True
@@ -341,7 +341,7 @@ def test_engine_refuses_a_rebound_host(review_and_api, monkeypatch, tmp_path):
         _assert_open_host_jail(port)
         health, _, raw = _raw(port, "/api/review/health")
         assert health == 200
-        assert json.loads(raw)["version"] == "4"
+        assert json.loads(raw)["version"] == "5"
     finally:
         httpd.shutdown()
         httpd.server_close()

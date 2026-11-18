@@ -37,7 +37,7 @@ import nova_review_http as review_http
 import nova_review_load as review_load
 import nova_review_warm as review_warm
 
-ENGINE_VERSION = "4"
+ENGINE_VERSION = "5"  # 5: a day without Massive files is read from the desk's IBKR candles
 SHOT_HEADER = "X-Nova-Review-Token"
 HOST_NOT_ALLOWED = "HOST_NOT_ALLOWED"
 _THIS_PC = (ipaddress.ip_address("127.0.0.1"), ipaddress.ip_address("::1"))
@@ -403,6 +403,7 @@ def make_engine_handler(bars_reader=None, daily_reader=None):
         bars_reader or review_load.front_door_bars,
         daily_reader or review_load.front_door_daily,
         _origins(),
+        fallback=review_http.default_fallback(bars_reader),
     )
 
     class Handler(parent):

@@ -59,14 +59,29 @@ def _frame(bars: list[dict[str, Any]], source: str | None) -> dict[str, Any]:
 
 
 def load_review(symbol: str, day: str, tfs: list[str] | str | None, as_of: str | None = None, *,
-                bars_reader: BarsReader = front_door_bars, daily_reader: DailyReader = front_door_daily) -> dict[str, Any]:
-    """Bars, levels and setups the page may paint at ``as_of``. Nothing after that time."""
+                bars_reader: BarsReader = front_door_bars, daily_reader: DailyReader = front_door_daily,
+                fallback: tuple[BarsReader, DailyReader] | None = None) -> dict[str, Any]:
+    """Bars, levels and setups the page may paint at ``as_of``. Nothing after that time.
+
+    ``fallback`` is a second pair of readers for a day the first has no file for (``LookupError`` on the
+    minutes): the whole page is then read from it, never mixed. With neither, the ``LookupError`` names both reasons.
+    """
     name = causal.check_symbol(symbol)
     session = causal.parse_day(day).isoformat()
     frames = causal.check_tfs(tfs)
     clock = causal.check_clock(as_of or causal.DEFAULT_AS_OF)
     moment = causal.as_of_dt(session, clock)
-    minutes = causal.closed_bars(list(bars_reader(name, session, "1m")), "1m", moment)
+    try:
+        raw_minutes = list(bars_reader(name, session, "1m"))
+    except LookupError as first:
+        if fallback is None:
+            raise
+        bars_reader, daily_reader = fallback
+        try:
+            raw_minutes = list(bars_reader(name, session, "1m"))
+        except LookupError as second:
+            raise LookupError(f"{first}; {second}") from second
+    minutes = causal.closed_bars(raw_minutes, "1m", moment)
     dailies = list(daily_reader(name, causal.lookback_start(session), session))
     sources: dict[str, str] = getattr(bars_reader, "sources", {})
     timeframes: dict[str, Any] = {"1m": _frame(causal.wire_bars(minutes, "1m"), sources.get("1m"))}
@@ -87,7 +102,7 @@ def load_review(symbol: str, day: str, tfs: list[str] | str | None, as_of: str |
         "date": session,
         "as_of": clock,
         "as_of_iso": moment.isoformat(),
-        "source": "front-door",
+        "source": getattr(bars_reader, "origin", "front-door"),
         "lookahead": False,
         "vwap_anchor": "04:00",
         "timeframes": timeframes,
