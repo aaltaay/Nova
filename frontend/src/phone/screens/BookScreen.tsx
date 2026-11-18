@@ -11,6 +11,7 @@
  * reopens the real line or the replay instead of keeping the socket it opened on the other side, and a Sim the
  * phone does not draw (or a gap in the recording) shows the desk's words in place of the book.
  */
+import { LEVEL2_NO_WORD } from '../../constantGroups/market_ui';
 import { useMemo, useRef, useState } from 'react';
 import { TICKER_TRADE_DEPTH_LEVELS } from '../../constants';
 import { Level2DepthChart } from '../../ibkr/Level2DepthChart';
@@ -100,10 +101,13 @@ export function BookScreen({ symbol }: { symbol: string }) {
   return <BookRead key={`${symbol}:${view.feedKey}`} symbol={symbol} blank={blank} />;
 }
 
+const WATCHED = { watchLink: true } as const;
+
 /** The page for one feed. `blank`: the desk's words drawn in place of the book; null draws the book. */
 function BookRead({ symbol, blank }: { symbol: string; blank: string | null }) {
   const marksOn = useLevel2Marks();
-  const depth = useIbkrDepth(symbol, true);
+  // The phone is not on the PC: its Level 2 socket is watched, and one that went quiet is asked for again.
+  const depth = useIbkrDepth(symbol, true, WATCHED);
   const book = blank ? null : depth.book;
   const watch = book && !book.l1_fallback ? depth.watch : null;
   const nowMs = useBookWatchClock(watch, Boolean(watch));
@@ -117,7 +121,7 @@ function BookRead({ symbol, blank }: { symbol: string; blank: string | null }) {
   const [page, setPage] = useState(0);
   const pages = Math.max(1, Math.ceil(cards.length / perPage));
   const at = Math.min(page, pages - 1);
-  const why = blank ?? depth.laneWait?.plain ?? depth.error ?? (book?.l1_fallback ? 'IBKR sent no Level 2 for this stock: this is the top of book only.' : null);
+  const why = blank ?? depth.laneWait?.plain ?? (depth.quietSince != null ? LEVEL2_NO_WORD : null) ?? depth.error ?? (book?.l1_fallback ? 'IBKR sent no Level 2 for this stock: this is the top of book only.' : null);
 
   return (
     <PhoneScreen

@@ -29,6 +29,9 @@
  * A lock holds a new buy or short only. A sell or a cover is never locked (`orderCloses`; ADR 045 amendment
  * 2026-11-06, "we should never, ever just be locking the sell"), and the backend lets it through too.
  *
+ * A page that watches its link (the phone) says when one of its sockets went quiet (`noteLinkQuiet`, 2026-11-17):
+ * the screen is then old however fresh the PC's view is, so new buys lock until the socket speaks again.
+ *
  * In memory, per window. Desk and backend run on one machine (the backend binds 127.0.0.1), so the
  * backend's `sent` / `now` and this window's `Date.now()` are one clock. On the phone they are two, so
  * every moment here is read from `deskNow()` (utils/deskClock): this device's clock plus the offset its
@@ -43,6 +46,7 @@ import {
   LEVEL2_REFUSED_TAIL,
   LEVEL2_WAITING_LEAD,
   LEVEL2_WAITING_TAIL,
+  LINK_QUIET_LEAD,
   TAPE_STALE_CODE,
   TICKET_FEED_LOCKED_LABEL,
   TICKET_LEVEL2_REFUSED_LABEL,
@@ -108,6 +112,8 @@ interface BackendGate {
 const books = new Map<string, BookView>();
 const quotes = new Map<string, QuoteView>();
 const gates = new Map<string, BackendGate>();
+/** Per symbol: each of this screen's sockets that has gone quiet (by pane name), and since when (desk clock, ms). */
+const linkQuiet = new Map<string, Map<string, number>>();
 const AT_KEEP = 64;
 
 function key(symbol: string): string {
@@ -258,6 +264,24 @@ export function forgetBackendGate(symbol: string): void {
   if (gates.delete(key(symbol))) recompute();
 }
 
+/**
+ * One of this screen's sockets for *symbol* (`pane`: "Level 2" or "Time & Sales") has said nothing since `since`
+ * (desk clock, ms), or speaks again (`null`). Only a page that watches its link reports it (`ibkr/socketWatch.ts`).
+ */
+export function noteLinkQuiet(symbol: string, pane: string, since: number | null): void {
+  const k = key(symbol);
+  const panes = linkQuiet.get(k);
+  if (since == null) {
+    if (!panes?.delete(pane)) return;
+    if (panes.size === 0) linkQuiet.delete(k);
+  } else if (panes) {
+    panes.set(pane, since);
+  } else {
+    linkQuiet.set(k, new Map([[pane, since]]));
+  }
+  recompute();
+}
+
 /** This window stopped showing the symbol's Level 2 (another symbol, or unmounted). */
 export function forgetBook(symbol: string): void {
   books.delete(key(symbol));
@@ -273,6 +297,12 @@ export function viewLockReason(symbol: string | null | undefined, now = deskNow(
   if (!symbol) return null;
   const gate = gates.get(key(symbol));
   if (gate) return gate.text;                               // the backend's own lock, in the door's words
+  const quiet = linkQuiet.get(key(symbol));
+  if (quiet?.size) {
+    // The socket quiet the longest: what this screen shows of the stock is that old.
+    const [pane, since] = [...quiet].sort((a, b) => a[1] - b[1])[0];
+    return `${LINK_QUIET_LEAD} ${pane} has had no word from your PC for ${secs(Math.max(0, now - since))}. ${VIEW_LOCK_TAIL}`;
+  }
   const view = books.get(key(symbol));
   if (!view) return null;                                   // no Level 2 for it here: the backend judges
   if (view.refused != null) {
@@ -383,7 +413,7 @@ function sameLock(prev: string | null, next: string | null): boolean {
 function recompute(now = deskNow()): void {
   let changed = false;
   const seen = new Set<string>();
-  for (const k of new Set([...books.keys(), ...gates.keys()])) {
+  for (const k of new Set([...books.keys(), ...gates.keys(), ...linkQuiet.keys()])) {
     seen.add(k);
     const next = viewLockReason(k, now);
     const prev = locks.get(k) ?? null;
@@ -427,6 +457,7 @@ export function resetViewRegistryForTests(): void {
   books.clear();
   quotes.clear();
   gates.clear();
+  linkQuiet.clear();
   locks.clear();
   lockedSince.clear();
   reportFlip = null;

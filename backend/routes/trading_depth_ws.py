@@ -38,6 +38,7 @@ from ibkr.depth.stream import beat_frame, book_frame
 from line_lanes import lanes as _lanes
 from line_lanes import sockets as _lane
 from market_view.viewer_queues import BookVersion
+from routes.ws_delivery import Delivery
 
 logger = logging.getLogger(__name__)
 
@@ -147,6 +148,7 @@ async def run_ws_depth(websocket: WebSocket, symbol: str) -> None:
     viewer_opened = False
     socket_token: int | None = None
     queue: asyncio.Queue | None = None
+    delivery = Delivery("depth", symbol, websocket, front=front)  # what this socket was sent, logged when it closes
     try:
         _depth.ws_viewer_opened(symbol)
         viewer_opened = True
@@ -196,6 +198,7 @@ async def run_ws_depth(websocket: WebSocket, symbol: str) -> None:
             await websocket.send_text(book_frame(
                 symbol, BookVersion(version.seq if version else 0, version.at if version else 0.0, current)
             ))
+            delivery.sent()
 
         watch = _WatchFrames(symbol)
         luld = _LuldFrames(symbol)
@@ -215,6 +218,7 @@ async def run_ws_depth(websocket: WebSocket, symbol: str) -> None:
                 continue
             if isinstance(item, BookVersion):
                 await websocket.send_text(book_frame(symbol, item))
+                delivery.sent()
                 last_view = mono
                 continue
             if item.get("type") == "error":
@@ -238,6 +242,7 @@ async def run_ws_depth(websocket: WebSocket, symbol: str) -> None:
         else:
             logger.exception("IBKR depth WS error for %s: %s", symbol, exc)
     finally:
+        delivery.log()
         if queue is not None:
             _depth.close_viewer_queue(symbol, queue)
         _lane.closed(symbol, socket_token, _lane.DEPTH)

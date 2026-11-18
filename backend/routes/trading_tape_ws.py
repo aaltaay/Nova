@@ -24,6 +24,10 @@ Each ping also carries ``gate``: the order gate's own answer for the symbol now 
 ``{code, text}`` or ``null``), and while prints flow a ``{"type": "gate", ...}`` frame goes out whenever
 that answer changes (checked every MARKET_VIEW_GATE_SEND_SEC). The ticket locks with the words the door
 would refuse with (ADR 045 amendment 2026-10-14, "one funnel").
+
+A socket that asks (``?recent=<n>[&after=<seq>]``, the phone) gets the prints the PC already holds for the line
+right after ``subscribed`` (``routes.tape_recent``), and every socket's delivery is logged when it closes
+(``routes.ws_delivery``): operator report 2026-11-17.
 """
 from __future__ import annotations
 
@@ -38,6 +42,8 @@ from ibkr import tape_silence
 from ibkr import tape_stream as _tape
 from line_lanes import lanes as _lanes
 from line_lanes import sockets as _lane
+from routes import tape_recent
+from routes.ws_delivery import Delivery
 from sim.mode import desk_connected, is_replay_desk
 
 logger = logging.getLogger(__name__)
@@ -66,6 +72,8 @@ async def run_ws_tape(websocket: WebSocket, symbol: str) -> None:
     viewer_opened = False
     socket_token: int | None = None
     queue = None
+    recent_n, recent_after = tape_recent.asked(websocket.query_params)
+    delivery = Delivery("tape", symbol, websocket, front=front)
     try:
         _tape.ws_viewer_opened(symbol)
         viewer_opened = True
@@ -79,6 +87,8 @@ async def run_ws_tape(websocket: WebSocket, symbol: str) -> None:
                 return
 
         queue = _tape.open_viewer_queue(symbol)
+        # No wait between the queue and this read: a print is in the one or the other, never both, never neither.
+        held = [] if is_replay_desk() else tape_recent.held(symbol, recent_n, recent_after)
         no_lane = None if is_replay_desk() else _lanes.refusal(symbol)
         if no_lane is not None:
             # The lane left this stock while this socket subscribed: its frame went out before the queue existed.
@@ -86,6 +96,13 @@ async def run_ws_tape(websocket: WebSocket, symbol: str) -> None:
             await websocket.close()
             return
         await websocket.send_text(json.dumps({"type": "subscribed", "symbol": symbol}))
+        if held:
+            # What the PC holds for this line: a fresh pane is not empty, a socket that dropped has no hole.
+            await websocket.send_text(json.dumps({
+                "type": "prints", "symbol": symbol, "items": [{**p, "type": "print"} for p in held],
+                "sent": time.time(), "recent": True,
+            }))
+            delivery.sent(len(held))
 
         # Capture replay: seed recent prints so T&S is not empty until the feed catches up.
         try:
@@ -114,7 +131,7 @@ async def run_ws_tape(websocket: WebSocket, symbol: str) -> None:
                 if not is_replay_desk():
                     _lane.line_down(symbol, silence=silence)
                 continue
-            if not await _send_batch(websocket, symbol, batch):
+            if not await _send_batch(websocket, symbol, batch, delivery):
                 break
             if time.time() - gate_at >= MARKET_VIEW_GATE_SEND_SEC:
                 gate, gate_at = _gate(symbol), time.time()
@@ -131,6 +148,7 @@ async def run_ws_tape(websocket: WebSocket, symbol: str) -> None:
         else:
             logger.exception("IBKR tape WS error for %s: %s", symbol, exc)
     finally:
+        delivery.log()
         if queue is not None:
             _tape.close_viewer_queue(symbol, queue)
         _lane.closed(symbol, socket_token, _lane.TAPE)
@@ -147,16 +165,21 @@ def _refused(symbol: str, result: dict) -> dict:
     return {"type": "error", "message": result.get("error")}
 
 
-async def _send_prints(websocket: WebSocket, symbol: str, prints: list[dict]) -> None:
+async def _send_prints(websocket: WebSocket, symbol: str, prints: list[dict],
+                       delivery: Delivery | None = None) -> None:
+    count = len(prints)
     if len(prints) == 1:
         await websocket.send_text(json.dumps({**prints[0], "type": "print"}))
     elif prints:
         items = [{**p, "type": "print"} for p in prints]
         await websocket.send_text(json.dumps({"type": "prints", "symbol": symbol, "items": items, "sent": time.time()}))
+    if delivery is not None:
+        delivery.sent(count)
     prints.clear()
 
 
-async def _send_batch(websocket: WebSocket, symbol: str, batch: list[dict]) -> bool:
+async def _send_batch(websocket: WebSocket, symbol: str, batch: list[dict],
+                      delivery: Delivery | None = None) -> bool:
     """Send one batch in order: prints together, each control frame where it fell. False when the
     socket must close (the line was lent or released)."""
     prints: list[dict] = []
@@ -167,7 +190,7 @@ async def _send_batch(websocket: WebSocket, symbol: str, batch: list[dict]) -> b
         if msg_type == "print":
             prints.append(item)
             continue
-        await _send_prints(websocket, symbol, prints)
+        await _send_prints(websocket, symbol, prints, delivery)
         if msg_type == "lane":
             # Its lane left the stock (ADR 071): the pane waits for the operator, never by its backoff.
             await websocket.send_text(json.dumps(item))
@@ -197,7 +220,7 @@ async def _send_batch(websocket: WebSocket, symbol: str, batch: list[dict]) -> b
             await websocket.send_text(json.dumps({"type": "scrub_reset", "symbol": symbol}))
         else:
             prints.append(item)
-    await _send_prints(websocket, symbol, prints)
+    await _send_prints(websocket, symbol, prints, delivery)
     return True
 
 

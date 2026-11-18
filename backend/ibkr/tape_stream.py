@@ -18,6 +18,7 @@ ended session is not subscribed, and joining it lets it go first
 from __future__ import annotations
 
 import asyncio
+import itertools
 import logging
 import time
 from typing import Any
@@ -66,6 +67,10 @@ IBKR_TAPE_QUEUE_MAXSIZE = 2048          # cap buffer per symbol
 # order gate's answer (ADR 045 amendment 2026-10-14), so this is also how late the Trader's ticket can
 # learn its tape stopped: 15 s held LINE DOWN back that long, and 5 s let GENK's order through.
 TAPE_STREAM_HEARTBEAT_SEC = 1.0
+# A print's ``seq``: from this process's start in epoch ms, one up per print. A later process therefore starts
+# above every print of an earlier one (it would take 1,000 prints a second, sustained since the start, to pass
+# the clock), so a socket's ``after=<seq>`` from before a restart never hides a new print.
+_print_seq = itertools.count(int(time.time() * 1000))
 
 
 def _load_ib_types() -> bool:
@@ -81,7 +86,13 @@ def _load_ib_types() -> bool:
 
 
 def _push_queue(symbol: str, payload: dict) -> None:
-    """Broadcast payload to every viewer currently watching this symbol."""
+    """Broadcast payload to every viewer currently watching this symbol.
+
+    A print takes its ``seq`` here, before the ring and the queues see it: its place in this backend's tape
+    (``architecture/schema/execution.md``), which lets a socket ask for what it did not get.
+    """
+    if payload.get("type", "print") == "print" and "seq" not in payload:
+        payload["seq"] = next(_print_seq)
     try:
         from sensors.rings import observe_print
 

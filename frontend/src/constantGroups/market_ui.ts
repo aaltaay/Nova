@@ -200,6 +200,20 @@ export const TAPE_STATUS_NO_LANE = 'NO LANE';
 /** IBKR refused or ended the line and the backend is asking again by itself (#698). */
 export const TAPE_STATUS_RETRYING = 'RETRYING';
 /**
+ * The phone's tape always says its state over its rows (operator report 2026-11-17, `phone/trade/TapeStatus.tsx`):
+ * these beside the desk's own words below. NO DATA: the socket to the PC has said nothing (`ibkr/socketWatch.ts`).
+ */
+export const TAPE_STATUS_CONNECTING = 'CONNECTING';
+export const TAPE_STATUS_ERROR = 'ERROR';
+export const TAPE_STATUS_NO_DATA = 'NO DATA';
+export const TAPE_NO_DATA_NOTE = 'No word from your PC on this tape. Asking again.';
+/** Beside LIVE, the newest print's age is written once it is this old ("last 23s"). */
+export const TAPE_LAST_PRINT_SHOW_MS = 5_000;
+/** How many of the prints the PC holds the phone's tape asks for when it opens (`?recent=`). */
+export const PHONE_TAPE_RECENT = 40;
+/** Level 2's words while its socket to the PC has said nothing (the header pill and the lock carry the count). */
+export const LEVEL2_NO_WORD = 'No word from your PC on Level 2. Asking again.';
+/**
  * The live line printed nothing for a while (#722), counted in seconds on the badge: LINE DOWN while
  * the stock's Level 1 counts trades the tape never printed, SILENT while Level 2 kept updating (the
  * line may be down), QUIET while nothing traded or the book is quiet too, HALTED in a halt.

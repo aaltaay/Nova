@@ -10,6 +10,8 @@ export type TapeSide = 'ask' | 'bid' | 'between' | 'unknown';
 export interface TapePrint {
   /** Stable canonical replay print identity; absent for the live feed. */
   replayId?: string;
+  /** The print's place in the backend's live tape (`seq`); absent from an older backend. */
+  seq?: number;
   symbol: string;
   /** When the print reached Nova: it keeps the rows in order. */
   time: string;
@@ -30,6 +32,49 @@ export interface TapePrint {
    * the backend's `sets_price` (AGENTS.md §3). Absent reads as a price.
    */
   setsPrice?: boolean;
+}
+
+/** One print as the socket sends it: a `print` frame, or an item of a `prints` frame (ADR 045). */
+export interface TapeWirePrint {
+  symbol?: string;
+  time: string;
+  price: number;
+  size: number;
+  exchange?: string;
+  conditions?: string;
+  side?: TapeSide;
+  bid?: number | null;
+  ask?: number | null;
+  unreported?: boolean;
+  sets_price?: boolean;
+  exchange_ts?: number | null;
+  seq?: number;
+}
+
+/** A wire print's `seq`, or null when it carries none (a replay's print, an older backend). */
+export function wireSeq(item: Pick<TapeWirePrint, 'seq'>): number | null {
+  return typeof item.seq === 'number' && Number.isFinite(item.seq) ? item.seq : null;
+}
+
+/** The pane's print for a wire print; `frameSymbol` is the frame's own symbol, for an item that names none. */
+export function tapePrintFromWire(item: TapeWirePrint, frameSymbol: string): TapePrint {
+  const seq = wireSeq(item);
+  return {
+    ...(seq != null ? { seq } : {}),
+    symbol: item.symbol ?? frameSymbol,
+    time: item.time,
+    exchangeTs: typeof item.exchange_ts === 'number' ? item.exchange_ts : null,
+    price: item.price,
+    size: item.size,
+    exchange: item.exchange ?? '',
+    conditions: item.conditions ?? '',
+    side: item.side,
+    bid: item.bid ?? null,
+    ask: item.ask ?? null,
+    unreported: item.unreported === true,
+    // Older backends send no verdict: treat the print as a price, as before.
+    setsPrice: item.sets_price !== false,
+  };
 }
 
 export type TapeSilenceRecoveryState =
@@ -173,6 +218,11 @@ export interface TapeState {
   retryAt?: number | null;
   /** The line has printed nothing for a while (#722); absent or null while it prints. */
   silence?: TapeSilence | null;
+  /**
+   * This socket has said nothing since this moment (desk clock, ms) and is being asked for again; null while it
+   * speaks. Only a tape that watches its link reports it (`watchLink`, the phone); absent otherwise.
+   */
+  quietSince?: number | null;
 }
 
 /** A print that may set a price: not flagged unreported, and not volume-only by its conditions. */

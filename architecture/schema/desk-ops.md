@@ -1247,6 +1247,26 @@ read below is one the desk already makes, and every write goes to `/api/phone`
   view registry (`noteBookShown`), and the registry's lock reason is what holds
   the buys. Sizes are written short in the narrow columns ("1.2K"); a tape
   size is whole under 10,000.
+  - *The tape says whether it is live* (operator report 2026-11-17: "the time and sale was not moving ... there
+    was a missing piece"; `phone/trade/TapeStatus.tsx`). One line over the rows, always there: `LIVE`, and beside
+    it the age of the newest print once it is 5 s old ("last 23s"); the desk's own word and count for a line with
+    no print (`ibkr/tapeSilence`: `QUIET 45s`, `SILENT 45s`, `LINE DOWN 45s`, `HALTED`); `NO DATA 6s` while the
+    phone has heard nothing from the PC on the socket; `CONNECTING`, `RETRYING`, `ERROR`, or `NO LANE`. Whenever
+    the tape is not live its rows are drawn faded, and the reason (the desk's words) is written under them even
+    with prints on screen. The phone judges nothing: the word is the socket's state and the backend's reading.
+  - *The tape opens with what the PC holds.* The phone's tape socket asks `?recent=40`, and after a drop
+    `&after=<the last seq it has>` (`execution.md`), so a fresh screen is not empty on a stock that traded and a
+    reconnect leaves no hole. A print whose `seq` it already has is not added twice.
+  - *A socket that went quiet is replaced* (`ibkr/socketWatch.ts`; `useIbkrTape` / `useIbkrDepth` with
+    `watchLink`, which only the phone passes). The tape's socket says something at least every second (a print or
+    a `ping`), Level 2's every quarter second (a book or a `beat`). With the page in front, a socket that has said
+    nothing for `LINK_QUIET_MS` (3.5 s), or nothing at all for `LINK_OPEN_MS` (10 s) after it was asked for, is
+    dropped and asked for again at once with the same `front` (a replaced socket never moves your lane by
+    itself). While it lasts the tape reads `NO DATA 6s`, Level 2 says "No word from your PC on Level 2. Asking again.", the header
+    pill turns red, and new buys are held with those words (`market_view`'s `noteLinkQuiet`; a sell, a cover,
+    Flatten and Cancel still go). A page coming back to the front gives its sockets 1.5 s to speak before it
+    judges them, and a reconnect that was waiting on its backoff is made at once. The desk's own panes are
+    unchanged: their socket is on the same PC, and a reconnect there would drop a backlog (ADR 045).
   - *Every order is the desk's ticket code.* A Quick button is a desk action
     (`runNovaAction`): `buy_market`, `buy_limit_ask_offset` (Ask + $0.05),
     `sell_pos_pct_ask` (50 or 100), `sell_pos_pct_bid_offset` (Bid - $0.03, 50

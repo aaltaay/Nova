@@ -12,6 +12,7 @@ import {
   noteBeat,
   noteBookFrame,
   noteBookShown,
+  noteLinkQuiet,
   noteQuote,
   noteRefused,
   noteSubscribed,
@@ -275,5 +276,32 @@ describe('a Level 2 that is open with no book yet (operator decision 2026-10-27,
     noteBackendGate('BKYI', { code: 'BOOK_WAITING', text });
     expect(viewLockReason('BKYI', T0)).toBe(text);
     expect(viewLockLabel(text)).toBe('Waiting for Level 2 · locked');
+  });
+});
+
+describe('a screen socket that went quiet holds new buys (the phone, operator report 2026-11-17)', () => {
+  it('locks with the pane quiet the longest, and lifts when every socket speaks again', () => {
+    const now = 1_794_944_100_000;
+    noteLinkQuiet('gmm', 'Time & Sales', now - 6_000);
+    noteLinkQuiet('GMM', 'Level 2', now - 4_000);
+    expect(viewLockReason('GMM', now)).toBe(
+      "This screen's Time & Sales has had no word from your PC for 6.0 s. New buys and shorts wait until it catches up. "
+      + 'Sells, covers, Flatten and cancels still work.',
+    );
+    recomputeViewLocks(now);
+    expect(currentViewLock('GMM')).not.toBeNull();
+    noteLinkQuiet('GMM', 'Time & Sales', null);
+    expect(viewLockReason('GMM', now)).toMatch(/^This screen's Level 2 /);
+    noteLinkQuiet('GMM', 'Level 2', null);
+    expect(viewLockReason('GMM', now)).toBeNull();
+    recomputeViewLocks(now);
+    expect(currentViewLock('GMM')).toBeNull();
+  });
+
+  it('the backend\'s own lock still comes first, in the door\'s words', () => {
+    const now = 1_794_944_100_000;
+    noteLinkQuiet('GMM', 'Time & Sales', now - 6_000);
+    noteBackendGate('GMM', { code: 'TAPE_STALE', text: "GMM's Time & Sales is missing trades." });
+    expect(viewLockReason('GMM', now)).toBe("GMM's Time & Sales is missing trades.");
   });
 });

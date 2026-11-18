@@ -21,7 +21,7 @@ import type { HaltSnapshot } from '../../types/ticker';
 import { assignPriceTiers, tierBackground } from '../../ibkr/dasDepthTiers';
 import { formatDepthPrice } from '../../ibkr/depthNumberFormat';
 import { fmtTapeTime, formatTapePrice, formatTapeSize, tapeRowKey } from '../../ibkr/TapeRow';
-import { tapePrintSetsPrice, type TapePrint } from '../../ibkr/tapeFeed';
+import { tapePrintSetsPrice, type TapePrint, type TapeState } from '../../ibkr/tapeFeed';
 import type { DepthBook, DepthLevel } from '../../ibkr/types';
 import { noteBookShown } from '../../market_view';
 import { plainPrice } from '../../utils/priceTick';
@@ -30,6 +30,7 @@ import { useRowsThatFit } from '../useRowsThatFit';
 import {
   BigBannerChip, BigRowParts, DEPTH_STRIP_PX, DepthStrip, MarksLayer, rowMarkClass, sideMarks, type SideMarks,
 } from './BookMarks';
+import { TapeStatusLine, useTapeStatus } from './TapeStatus';
 
 const ROW_PX = 20;
 /** A tape size is written whole up to here; past it the column has no room, and "12.5K" says enough. */
@@ -209,27 +210,33 @@ function HaltLine({ halt }: { halt: HaltSnapshot }) {
   );
 }
 
-export function TradeTape({ prints, why, halt = null }: {
-  prints: readonly TapePrint[];
-  why: string | null;
+export function TradeTape({ tape, halt = null }: {
+  /** The desk's Time & Sales for the stock (`useIbkrTape`): its prints and its own state. */
+  tape: TapeState;
   /** The stock's live halt, as the desk's ticker read carries it; null while it trades. */
   halt?: HaltSnapshot | null;
 }) {
   const boxRef = useRef<HTMLDivElement>(null);
   const fit = useRowsThatFit(boxRef, ROW_PX);
   const halted = halt?.halted ? halt : null;
+  const status = useTapeStatus(tape);
+  const { prints } = tape;
   return (
-    <div className="ph-tape" data-testid="phone-tape">
+    <div className="ph-tape" data-testid="phone-tape" data-live={status.live ? 'true' : 'false'}>
       <div className="ph-tape__cols"><span>Time</span><span>Price</span><span>Size</span></div>
+      {/* Always there: a tape with no new row says whether the stock is quiet or the tape has stopped. */}
+      <TapeStatusLine status={status} />
       {halted ? <HaltLine halt={halted} /> : null}
       <div className="ph-tape__rows" ref={boxRef}>
         {!prints.length ? (
           <div className="ph-tape__wait" role="status">
             <Clock size={18} aria-hidden="true" />
-            <span>{why ?? (halted ? 'No prints while it is halted.' : 'Tape waiting…')}</span>
+            <span>{status.note ?? (halted ? 'No prints while it is halted.' : status.live ? 'No prints yet.' : 'Tape waiting…')}</span>
           </div>
         ) : prints.slice(0, fit).map((p) => <TapeLine key={tapeRowKey(p)} print={p} />)}
       </div>
+      {/* Why it is not live, even with prints on screen: they are no longer the market. */}
+      {prints.length && status.note ? <div className="ph-tape__note" role="status" data-testid="phone-tape-note">{status.note}</div> : null}
     </div>
   );
 }

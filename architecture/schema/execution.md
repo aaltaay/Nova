@@ -71,6 +71,23 @@ the order reached the backend 2-3 s after the click and rested above the market.
   (`IBKR_TAPE_QUEUE_MAXSIZE`, oldest dropped and counted in `tape.viewer_dropped`) with the same wake-up; two or
   more waiting prints go as one `{"type": "prints", "symbol", "items": [print...], "sent"}` frame, a single one
   as the `print` frame it was.
+  - **`seq` on a live print** (operator report 2026-11-17: the phone's tape "was not moving"). Each live print
+    carries `seq: integer`, its place in this backend's tape (`ibkr/tape_stream.py`): it starts at the process's
+    start in epoch ms and rises by one per print, so a print of a later process is always above an earlier one's.
+    A Sim replay's prints carry none.
+  - **The prints the PC already holds** (`routes/tape_recent.py`). A socket opened with `?recent=<n>` (1 to
+    `TAPE_RECENT_MAX`, 200) on a desk that is not replaying gets, right after `subscribed`, one `{"type": "prints",
+    "symbol", "items": [print...], "sent", "recent": true}` frame: the newest *n* prints of the line's own
+    stretch (received since the line last opened, `tape_recording.producer_status().line_since`; an older print
+    is never sent, since the gap before it would not show), oldest first. With `&after=<seq>` it is instead every
+    such print above that `seq` (the newest `TAPE_RECENT_MAX` of them): what a socket that dropped did not get.
+    The snapshot is taken with the socket's queue, with no wait between, so no print is in both and none is in
+    neither. No frame when there is nothing to send. A `recent` frame is for the rows only: the pane's 10-second
+    candle and the heat map take live prints, as before. Asked for by the phone (`useIbkrTape`'s `recent`); the
+    desk's panes do not ask.
+  - **What each socket was sent** is logged when it closes (`routes/ws_delivery.py`, INFO): the stock, the
+    client's address, `front`, how long it was open, how many prints (or books) it was sent and the last one's
+    time. Level 2's socket logs the same. Memory and the log only.
 - **Quote** (`/ws/ticker/{symbol}`): `trade_update` adds `seq` and `at`, the symbol's quote version. Off the live edge on a Sim desk (`sim.mode.is_replay_desk()`), live `stream` and `snapshot` `trade_update` publication and quote-version bumps are suppressed in `ibkr/ticks_handler.py`, `ibkr/reprice.py` and `market_view/quote_push.py` (including a producer-supplied sequence or a pending live frame queued before leaving the live edge, which is unbumped so `QUOTE` never diverges from the socket), while recorded `source: "sim"` updates advance `QUOTE` and reach the socket (#867). Live feed ingestion, scanner listeners and recording continue.
 - **The view an order carries.** `POST /api/ibkr/order` and `PATCH /api/ibkr/order/{id}` accept `view:
   {schema_version: 1, symbol, action_wall_ms, instance: string | null, book: {seq, at, bid, ask} | null, quote:
