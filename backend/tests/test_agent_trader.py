@@ -410,7 +410,7 @@ def test_leaving_paper_cancels_claudes_waiting_buy_and_its_status_says_paused(pa
     assert status["paused"]["reason"] == "TRADER_PAUSED" and status["paused"]["venue"] == "live"
     assert [e["kind"] for e in status["events"]][:2] == ["paused", "paused"]
     claude = paper.client.get("/api/traders").json()["traders"]["claude"]
-    assert claude["paused"]["venue"] == "live" and claude["text"] == "Claude · Paused · desk on Live"
+    assert claude["paused"]["venue"] == "live" and claude["text"] == "Claude · Paper only · paused while you're on Live" == status["text"]
     set_venue("paper")
     assert paper.client.get("/api/agent/trader").json()["paused"] is None
 
@@ -499,3 +499,18 @@ def test_the_seat_waits_for_a_line_and_says_why(paper, monkeypatch):
     status = view.status()
     assert status["state"] == SEAT_WAITING and "All 3" in status["text"]
     assert any(e["kind"] == "line_wait" for e in status["events"])
+
+
+def test_a_done_day_stays_said_while_the_desk_is_off_paper(paper, monkeypatch):
+    """Paused never hides "Done for today": going back to Paper would not let Claude trade again."""
+    from traders import switches
+
+    _seat(paper)
+    switches.set_switch("claude", True, "test")
+    monkeypatch.setattr(ledger, "day_pnl", lambda fills=None: -600.0)
+    set_venue("live")
+    status = paper.client.get("/api/agent/trader").json()
+    assert status["state"] == "done" and status["text"].startswith("Claude · Done for today")
+    assert status["paused"]["venue"] == "live"
+    claude = paper.client.get("/api/traders").json()["traders"]["claude"]
+    assert claude["text"].startswith("Claude · Done for today")

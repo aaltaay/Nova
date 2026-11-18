@@ -77,7 +77,10 @@ export function readBrainSeat(raw: unknown): BrainSeatStatus | null {
   const today = obj(r.today);
   const limits = obj(r.limits);
   const note = obj(r.note);
+  const paused = obj(r.paused);
+  const pausedVenue = str(paused.venue)?.toLowerCase();
   return {
+    paused: pausedVenue ? { venue: pausedVenue, text: str(paused.text) ?? '' } : null,
     venue: str(top.venue)?.toLowerCase() ?? null,
     on, at: num(r.at), can_turn_on: r.can_turn_on === true,
     why_not_on: whyError ? { reason: str(why.reason) ?? '', error: whyError } : null,

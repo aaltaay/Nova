@@ -88,5 +88,10 @@ export interface ClaudeSeatStatus {
   /** Newest first. */
   events: ClaudeEvent[];
   read_error: string | null;
+  /**
+   * Set while Claude's switch is On and the desk is off Paper (ADR 072 Amendment 4): the venue the desk shows and
+   * the whole reason in Nova's words (the pill's tip). Null otherwise, and on a backend that does not say.
+   */
+  paused?: { venue: string; text: string } | null;
   generated_at: number;
 }

@@ -130,8 +130,10 @@ defaults with `error`; the next save writes a fresh file. A trader's daily loss 
   four fields only the brain has: `connected` (its program's heartbeat is fresh), `reading: [{symbol, text, source:
   "lane" | "level1"}]`, `events` (`bot.md`) and `wakes` (boolean: it turns itself On each trading morning; past its
   flat by `why_not_on.error` then ends "it turns On by itself the next trading morning"). On and not connected reads "Brain · On · its program is not running". `position`, `handed`, `today` and `limits.budget_used_usd` are the trader's own account's: Paper, whatever the desk
-  shows. While `paused` is set, `text` says so ("Brain · Paused · desk on Live", or "Brain · In XLAB +$42.00 · paused"
-  with a trade open); `today.loss_limit_usd` is each trader's own day stop in code until the loss lines land.
+  shows. While `paused` is set, `text` says where the trader trades and why it waits ("Brain · Paper only · paused while you're on Live", or
+  "Brain · In XLAB +$42.00 on Paper · paused while you're on Live" with a trade open; the operator, 2026-11-18:
+  "desk on Live" alone did not say the brain is pointed at Paper), the pill is amber, and `paused.text` is its hover
+  tip. Claude's seat writes the same words on `GET /api/agent/trader`; `today.loss_limit_usd` is each trader's own day stop in code until the loss lines land.
 - `PUT /api/traders/{trader}/switch {on: boolean}` -> the `GET` shape, or the refusal above. `404 TRADER_UNKNOWN`
   for another name.
 - `PUT /api/traders/{trader}/limits {max_shares?, risk_usd?, budget_usd?, flat_by?}` -> the `GET` shape. `400

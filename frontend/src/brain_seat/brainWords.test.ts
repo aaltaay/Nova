@@ -50,6 +50,22 @@ describe("the pill's words", () => {
     expect(down.pnl).toEqual({ text: '-$24.00', tone: 'dn' });
   });
 
+  it('On with the desk off Paper: it says it trades Paper only and why it waits, amber', () => {
+    const paused = { reason: 'TRADER_PAUSED', venue: 'live', text: 'The brain trades Paper only.' };
+    const flat = pill({ ...BRAIN_WATCHING, paused });
+    expect(flat.tone).toBe('wait');
+    expect(brainPillText(flat)).toBe("Brain · Paper only · paused while you're on Live");
+    const held = pill({ paused });
+    expect(held.tone).toBe('wait');
+    expect(brainPillText(held)).toBe("Brain · In XLAB +$42.00 on Paper · paused while you're on Live");
+    expect(brainPillText(pill({ ...BRAIN_WATCHING, paused: { ...paused, venue: 'sim' } })))
+      .toBe("Brain · Paper only · paused while you're on Sim");
+    // Off is Off, and a done day is done, whatever the desk shows.
+    expect(brainPillText(pill({ ...BRAIN_OFF, paused }))).toBe('Brain · Off');
+    expect(readBrainSeat(tradersAnswer({ paused }))?.paused).toEqual({ venue: 'live', text: paused.text });
+    expect(readBrainSeat(tradersAnswer())?.paused).toBeNull();
+  });
+
   it('day stop reached: "Brain · Done for today -$500", red', () => {
     const w = pill(BRAIN_DONE);
     expect(w.tone).toBe('done');

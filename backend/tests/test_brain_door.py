@@ -374,7 +374,7 @@ def test_leaving_paper_cancels_the_brains_waiting_buy_and_back_on_paper_it_trade
     brain = paper.client.get("/api/traders").json()["traders"]["brain"]
     assert brain["on"] is True and brain["lane"]["symbol"] == "SMPL"   # no switch flipped, no lane moved
     assert brain["paused"]["reason"] == "TRADER_PAUSED" and brain["paused"]["venue"] == "live"
-    assert brain["text"] == "Brain · Paused · desk on Live"
+    assert brain["text"] == "Brain · Paper only · paused while you're on Live"
     status = paper.client.get("/api/brain", headers=h).json()
     assert status["trades_on"] == "paper" and status["paused"]["venue"] == "live"
     assert status["can_enter"] is False and status["why_not"]["code"] == "BRAIN_NOT_PAPER"
@@ -401,7 +401,7 @@ def test_a_paused_brains_paper_trade_stays_on_its_pill(paper, venue):
     set_venue(venue, persist=False)
     brain = paper.client.get("/api/traders").json()["traders"]["brain"]
     assert brain["position"]["symbol"] == "SMPL" and brain["position"]["qty"] == 500
-    assert brain["text"].startswith("Brain · In SMPL") and brain["text"].endswith(" · paused")
+    assert brain["text"].startswith("Brain · In SMPL") and brain["text"].endswith(f" on Paper · paused while you're on {venue.capitalize()}")
     assert brain["paused"]["venue"] == venue and brain["state"] == "in_trade"
     status = paper.client.get("/api/brain", headers=h).json()
     assert status["position"]["symbol"] == "SMPL" and status["limits"]["budget_used_usd"] > 0

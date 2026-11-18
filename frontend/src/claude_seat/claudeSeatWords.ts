@@ -20,6 +20,7 @@ export function seatTone(state: ClaudeSeatState): ClaudeTone {
 export function pillTone(status: ClaudeSeatStatus): ClaudeTone {
   if (status.state === 'done') return 'done';
   if (status.switch && !status.switch.on) return 'off';
+  if (status.paused) return 'wait';                      // On, the desk off Paper: it trades Paper only, so it waits
   if (status.state === 'in_trade' && !status.line.depth) return 'wait';
   return seatTone(status.state);
 }
