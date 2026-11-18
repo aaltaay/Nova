@@ -20,11 +20,10 @@ NOVA_DESKTOP_API_PORT = 8000
 IBKR_HOST = "127.0.0.1"
 IBKR_SHORT_ENABLED_DEFAULT = False
 # Optional .env override when Gateway AccountType is ownership (INDIVIDUAL).
-# cash | margin. Unset = classify from tokens, then BP vs cash, else Cash.
+# cash | margin. Unset = IBKR's TradingType-S word (STKCASH / STKMRGN), then leverage, else Cash.
 IBKR_ACCOUNT_CLASS_ENV = "IBKR_ACCOUNT_CLASS"
-# BP <= cash * this → Cash. Mirror: frontend/src/ibkr/accountType.ts
-IBKR_ACCOUNT_CLASS_CASH_MAX_BP_RATIO = 1.15
-# BP >= cash * this (or BP >= ExcessLiquidity * this) → Margin. Else Cash.
+# BP >= ExcessLiquidity * this (or BP >= cash * this) → Margin: leverage a cash account never has.
+# Else Cash. Mirror: frontend/src/ibkr/accountType.ts
 IBKR_ACCOUNT_CLASS_MARGIN_MIN_BP_RATIO = 1.5
 
 # ── MASTER TEST QTY GATE (intentional; remove with one flip) ───────────────────

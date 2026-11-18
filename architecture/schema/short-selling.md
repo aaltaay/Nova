@@ -437,7 +437,9 @@ The operator-controlled Live short key, explicit arming/PIN and all broker/accou
 Bots remain Paper/Sim only. The day cover, cutoff and alarms below are unchanged.
 
 - **The margin account is IBKR's word.** Account summaries add `ibkr_account_class: "cash" | "margin"` (IBKR's own
-  figures: an AccountType or TradingType token, else BuyingPower against cash and excess liquidity) and
+  figures: an AccountType or TradingType token -- IBKR's `TradingType-S` reads `STKCASH` on a cash account and
+  `STKMRGN` is read as margin -- else leverage, BuyingPower at 1.5x or more of excess liquidity or of cash;
+  cash is what is left, since a held short's proceeds make "buying power under cash" no proof of a cash account) and
   `account_class_source: "override" | "ibkr"`; `account_class` still takes `IBKR_ACCOUNT_CLASS` first. A Live
   short needs `ibkr_account_class: "margin"` (`SHORT_NOT_MARGIN`, saying the override never counts).
 - **Live's day cover** (`short_sale/live_closes.py`, every second from the short runner) runs only while
