@@ -26,10 +26,10 @@ from phone_notify.constants_phone_notify import (
     KIND_LOSS_LIMIT,
     KIND_SETUP,
     KIND_TEST,
-    PHONE_NOTIFY_DEFAULT_SETTINGS,
-    PHONE_NOTIFY_HOD_QUIET_SEC,
-    PHONE_NOTIFY_KEY_ENV,
-    PHONE_NOTIFY_MAX_DEVICES,
+    NOTIFY_DEFAULT_SETTINGS,
+    NOTIFY_HOD_QUIET_SEC,
+    NOTIFY_KEY_ENV,
+    NOTIFY_MAX_DEVICES,
     REASON_BAD_ADDRESS,
     REASON_BAD_SETTINGS,
     REASON_NO_DEVICE,
@@ -59,7 +59,7 @@ def at(text: str) -> float:
 
 
 WEDNESDAY_0743 = at("2026-11-18 07:43")
-ON = {**PHONE_NOTIFY_DEFAULT_SETTINGS, "hod_momo": "stars", "setups": True, "new_leader": True, "fills": True,
+ON = {**NOTIFY_DEFAULT_SETTINGS, "hod_momo": "stars", "setups": True, "new_leader": True, "fills": True,
       "loss_limit": True, "start": "07:00", "end": "11:00"}
 
 
@@ -68,7 +68,7 @@ def clean(tmp_path, monkeypatch):
     """Each test has its own cache folder and its own .env, and starts with no memory of what was sent."""
     monkeypatch.setenv("NOVA_CACHE_DIR", str(tmp_path / "cache"))
     monkeypatch.setenv("NOVA_ENV_PATH", str(tmp_path / "nova.env"))
-    monkeypatch.delenv(PHONE_NOTIFY_KEY_ENV, raising=False)
+    monkeypatch.delenv(NOTIFY_KEY_ENV, raising=False)
     hooks.reset_for_tests()
     store.forget_for_tests()
     session.close()
@@ -129,7 +129,7 @@ def test_the_key_is_made_once_written_to_env_and_keeps_the_other_lines(tmp_path)
     assert error is None and key is not None
     lines = env.read_text(encoding="utf-8").splitlines()
     assert lines[:2] == ["NOVA_API_KEY=keep-me", "# a comment"]
-    assert lines[2].startswith(f"{PHONE_NOTIFY_KEY_ENV}=") and len(lines) == 3
+    assert lines[2].startswith(f"{NOTIFY_KEY_ENV}=") and len(lines) == 3
 
     again, error = vapid.ensure()
     assert error is None
@@ -139,16 +139,16 @@ def test_the_key_is_made_once_written_to_env_and_keeps_the_other_lines(tmp_path)
 
 def test_a_line_that_is_not_a_key_is_said_and_never_overwritten(tmp_path):
     env = tmp_path / "nova.env"
-    env.write_text(f"{PHONE_NOTIFY_KEY_ENV}=not-a-key\n", encoding="utf-8")
+    env.write_text(f"{NOTIFY_KEY_ENV}=not-a-key\n", encoding="utf-8")
     key, error = vapid.ensure()
     assert key is None and "not a sending key" in error
-    assert env.read_text(encoding="utf-8") == f"{PHONE_NOTIFY_KEY_ENV}=not-a-key\n"
+    assert env.read_text(encoding="utf-8") == f"{NOTIFY_KEY_ENV}=not-a-key\n"
 
 
 # ── What the PC keeps ─────────────────────────────────────────────────────────
 
 def test_everything_starts_off_with_no_phone():
-    assert store.settings() == PHONE_NOTIFY_DEFAULT_SETTINGS
+    assert store.settings() == NOTIFY_DEFAULT_SETTINGS
     assert store.settings()["hod_momo"] == "off" and not any(
         store.settings()[k] for k in ("setups", "new_leader", "fills", "loss_limit"))
     assert store.devices() == []
@@ -168,7 +168,7 @@ def test_everything_starts_off_with_no_phone():
 def test_settings_that_are_not_settings_are_refused_with_the_reason(change, why):
     kept, error = store.save_settings({**ON, **change})
     assert kept is None and why in error
-    assert store.settings() == PHONE_NOTIFY_DEFAULT_SETTINGS
+    assert store.settings() == NOTIFY_DEFAULT_SETTINGS
 
 
 def test_settings_and_phones_survive_a_reread_and_a_phone_can_leave():
@@ -203,12 +203,14 @@ def test_other_browsers_push_services_are_taken_and_bad_keys_are_not():
     phone = a_phone()
     for endpoint in ("https://updates.push.services.mozilla.com/wpush/v2/x", "https://web.push.apple.com/x"):
         assert store.check_endpoint(endpoint) is None
+    # Exact hosts only: a name that merely ends like a push service's is not one.
+    assert store.check_endpoint("https://evil.push.services.mozilla.com/x") is not None
     assert "keys" in store.add_device(ENDPOINT, "AAAA", phone["auth"])
 
 
 def test_the_list_of_phones_is_short():
     phone = a_phone()
-    for n in range(PHONE_NOTIFY_MAX_DEVICES):
+    for n in range(NOTIFY_MAX_DEVICES):
         assert store.add_device(f"{ENDPOINT}-{n}", phone["p256dh"], phone["auth"]) is None
     assert "already" in store.add_device(f"{ENDPOINT}-one-more", phone["p256dh"], phone["auth"])
 
@@ -217,7 +219,7 @@ def test_a_file_of_another_version_is_not_read(caplog):
     store.path().parent.mkdir(parents=True, exist_ok=True)
     store.path().write_text(json.dumps({"schema_version": 2, "settings": {**ON}, "devices": [a_phone()]}), encoding="utf-8")
     store.forget_for_tests()
-    assert store.settings() == PHONE_NOTIFY_DEFAULT_SETTINGS and store.devices() == []
+    assert store.settings() == NOTIFY_DEFAULT_SETTINGS and store.devices() == []
     assert "schema_version 2" in caplog.text
 
 
@@ -257,9 +259,9 @@ def test_one_hod_momo_notification_per_stock_per_quiet_period_and_a_new_day_star
     assert g.decide(KIND_HOD, hod, settings=everyone, now=WEDNESDAY_0743) == "send"
     assert g.decide(KIND_HOD, hod, settings=everyone, now=WEDNESDAY_0743 + 60) == "quiet"
     assert g.decide(KIND_HOD, {"symbol": "HIHO", "strategy_id": 11}, settings=everyone, now=WEDNESDAY_0743 + 60) == "send"
-    assert g.decide(KIND_HOD, hod, settings=everyone, now=WEDNESDAY_0743 + PHONE_NOTIFY_HOD_QUIET_SEC) == "send"
+    assert g.decide(KIND_HOD, hod, settings=everyone, now=WEDNESDAY_0743 + NOTIFY_HOD_QUIET_SEC) == "send"
     # A held-back alert does not restart the quiet period.
-    assert g.decide(KIND_HOD, hod, settings=everyone, now=WEDNESDAY_0743 + PHONE_NOTIFY_HOD_QUIET_SEC + 30) == "quiet"
+    assert g.decide(KIND_HOD, hod, settings=everyone, now=WEDNESDAY_0743 + NOTIFY_HOD_QUIET_SEC + 30) == "quiet"
     assert g.decide(KIND_HOD, hod, settings=everyone, now=at("2026-11-19 07:01")) == "send"
 
 
@@ -299,7 +301,7 @@ def test_fills_and_the_loss_limit_come_at_any_hour_but_never_from_a_sim_replay()
     assert g.decide(KIND_LOSS_LIMIT, {"venue": "paper"}, settings=ON, now=midnight) == "send"
     assert g.decide(KIND_LOSS_LIMIT, {"venue": "sim"}, settings=ON, now=midnight) == "not_this_venue"
     assert g.decide(KIND_LOSS_LIMIT, {"venue": "live"}, settings={**ON, "loss_limit": False}, now=midnight) == "off"
-    assert g.decide(KIND_TEST, {}, settings=PHONE_NOTIFY_DEFAULT_SETTINGS, now=midnight) == "send"
+    assert g.decide(KIND_TEST, {}, settings=NOTIFY_DEFAULT_SETTINGS, now=midnight) == "send"
     assert g.decide("something_else", {}, settings=ON, now=midnight) == "unknown_kind"
 
 
@@ -512,7 +514,7 @@ def unlocked() -> dict[str, str]:
 def test_a_read_needs_nothing_and_shows_everything_off(client):
     body = client.get("/api/phone/notify").json()
     assert body == {"schema_version": 1, "available": True, "why_unavailable": None, "public_key": None,
-                    "settings": PHONE_NOTIFY_DEFAULT_SETTINGS, "device_ids": [], "last_sent": None}
+                    "settings": NOTIFY_DEFAULT_SETTINGS, "device_ids": [], "last_sent": None}
 
 
 @pytest.mark.parametrize("method, path, body", [
@@ -525,7 +527,7 @@ def test_a_read_needs_nothing_and_shows_everything_off(client):
 def test_every_write_needs_the_pins_session(client, method, path, body):
     answer = getattr(client, method)(path, json=body)
     assert answer.status_code == 401 and answer.json()["detail"]["reason"] == PHONE_LOCKED
-    assert store.settings() == PHONE_NOTIFY_DEFAULT_SETTINGS and store.devices() == [] and vapid.private_key() is None
+    assert store.settings() == NOTIFY_DEFAULT_SETTINGS and store.devices() == [] and vapid.private_key() is None
 
 
 def test_turning_it_on_end_to_end(client, monkeypatch):
@@ -611,3 +613,28 @@ def test_the_file_is_read_once_and_a_write_is_what_the_next_read_sees(monkeypatc
     # What a caller is handed is a copy: changing it changes nothing kept.
     store.settings()["fills"] = False
     assert store.settings()["fills"] is True
+
+
+@pytest.mark.parametrize("stored, posted", [
+    ("https://fcm.googleapis.com/fcm/send/abc?x=1", "https://fcm.googleapis.com/fcm/send/abc?x=1"),
+    ("https://FCM.googleapis.com:443/fcm/send/abc#frag", "https://fcm.googleapis.com/fcm/send/abc"),
+    ("https://fcm.googleapis.com.evil.example/fcm/send/abc", None),
+    ("https://evil.example/fcm.googleapis.com", None),
+    ("http://fcm.googleapis.com/fcm/send/abc", None),
+    ("https://user@fcm.googleapis.com/fcm/send/abc", None),
+    ("https://fcm.googleapis.com:8443/fcm/send/abc", None),
+    ("https://127.0.0.1:8000/api/ibkr/order", None),
+])
+def test_the_pc_posts_only_to_an_address_rebuilt_on_a_listed_host(stored, posted):
+    assert sender.push_url(stored) == posted
+
+
+def test_a_stored_address_that_is_not_a_push_services_is_never_posted_to(monkeypatch):
+    """A phone-notify.json edited by hand must not make the PC post to another host (CodeQL py/full-ssrf)."""
+    vapid.ensure()
+    phone = a_phone()
+    assert store.add_device(phone["endpoint"], phone["p256dh"], phone["auth"]) is None
+    monkeypatch.setattr(store, "devices", lambda: [{**phone, "id": "0123456789abcdef", "endpoint": "https://127.0.0.1:8000/api/ibkr/order"}])
+    monkeypatch.setattr(sender, "_post", lambda *a: pytest.fail("nothing may be posted to an address off the list"))
+    result = sender.deliver({"title": "x"}, ttl=1)
+    assert result["ok"] is False and result["failed"] == 1 and "not a push service's" in result["error"]

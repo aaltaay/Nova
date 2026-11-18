@@ -32,14 +32,14 @@ from phone_notify.constants_phone_notify import (
     KIND_LOSS_LIMIT,
     KIND_SETUP,
     KIND_TEST,
-    PHONE_NOTIFY_ACCOUNT_VENUES,
-    PHONE_NOTIFY_HOD_QUIET_SEC,
-    PHONE_NOTIFY_SETUP_STAGES,
-    PHONE_NOTIFY_TZ,
+    NOTIFY_ACCOUNT_VENUES,
+    NOTIFY_HOD_QUIET_SEC,
+    NOTIFY_SETUP_STAGES,
+    NOTIFY_TZ,
 )
 from phone_notify.store import minutes_of
 
-_ET = ZoneInfo(PHONE_NOTIFY_TZ)
+_ET = ZoneInfo(NOTIFY_TZ)
 _RUNNING_UP_STRATEGY_ID = 12        # constants_hod_momo.HOD_MOMO_RUNNING_UP_STRATEGY_ID; the id, never the name
 _STAR = "star"
 
@@ -106,7 +106,7 @@ class Gate:
             if not in_hours(settings, now):
                 return "outside_hours"
             last = self.hod_last.get(symbol)
-            if last is not None and now - last < PHONE_NOTIFY_HOD_QUIET_SEC:
+            if last is not None and now - last < NOTIFY_HOD_QUIET_SEC:
                 return "quiet"
             self.hod_last[symbol] = now
             return SEND
@@ -114,7 +114,7 @@ class Gate:
             if not settings.get("setups"):
                 return "off"
             stage = str(event.get("stage") or "")
-            if stage not in PHONE_NOTIFY_SETUP_STAGES:
+            if stage not in NOTIFY_SETUP_STAGES:
                 return "not_a_stage"
             if event.get("source") != "live" or event.get("playing") is not True:
                 return "not_live"
@@ -141,7 +141,7 @@ class Gate:
         if kind == KIND_FILL:
             if not settings.get("fills"):
                 return "off"
-            if event.get("venue") not in PHONE_NOTIFY_ACCOUNT_VENUES:
+            if event.get("venue") not in NOTIFY_ACCOUNT_VENUES:
                 return "not_this_venue"
             if not symbol:
                 return "no_symbol"
@@ -154,5 +154,5 @@ class Gate:
         if kind == KIND_LOSS_LIMIT:
             if not settings.get("loss_limit"):
                 return "off"
-            return SEND if event.get("venue") in PHONE_NOTIFY_ACCOUNT_VENUES else "not_this_venue"
+            return SEND if event.get("venue") in NOTIFY_ACCOUNT_VENUES else "not_this_venue"
         return "unknown_kind"

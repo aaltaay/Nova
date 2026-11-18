@@ -19,7 +19,7 @@ from pathlib import Path
 from cryptography.hazmat.primitives.asymmetric import ec
 
 from phone_notify import webpush
-from phone_notify.constants_phone_notify import PHONE_NOTIFY_KEY_ENV
+from phone_notify.constants_phone_notify import NOTIFY_KEY_ENV
 
 logger = logging.getLogger(__name__)
 _lock = threading.Lock()
@@ -36,11 +36,11 @@ def _stored() -> str | None:
     from dotenv import dotenv_values
 
     try:
-        value = str(dotenv_values(_env_path()).get(PHONE_NOTIFY_KEY_ENV) or "").strip()
+        value = str(dotenv_values(_env_path()).get(NOTIFY_KEY_ENV) or "").strip()
     except OSError:
         logger.warning("PHONE NOTIFY: could not read .env for the sending key", exc_info=True)
         value = ""
-    return value or (os.environ.get(PHONE_NOTIFY_KEY_ENV) or "").strip() or None
+    return value or (os.environ.get(NOTIFY_KEY_ENV) or "").strip() or None
 
 
 def private_key() -> ec.EllipticCurvePrivateKey | None:
@@ -51,8 +51,8 @@ def private_key() -> ec.EllipticCurvePrivateKey | None:
     try:
         return webpush.private_key_from_b64(stored)
     except ValueError:
-        logger.warning("PHONE NOTIFY: %s in .env is not a sending key; notifications cannot be sent until the "
-                       "line is removed (a new key is then made on the next subscribe)", PHONE_NOTIFY_KEY_ENV)
+        logger.warning("PHONE NOTIFY: the sending key's line in .env is not a sending key; notifications cannot be "
+                       "sent until the line is removed (a new key is then made on the next subscribe)")
         return None
 
 
@@ -67,8 +67,8 @@ def _write_line(value: str) -> None:
     lines: list[str] = []
     if path.is_file():
         lines = path.read_text(encoding="utf-8-sig").splitlines()
-    lines = [ln for ln in lines if not ln.strip().startswith(f"{PHONE_NOTIFY_KEY_ENV}=")]
-    lines.append(f"{PHONE_NOTIFY_KEY_ENV}={value}")
+    lines = [ln for ln in lines if not ln.strip().startswith(f"{NOTIFY_KEY_ENV}=")]
+    lines.append(f"{NOTIFY_KEY_ENV}={value}")
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_name(f"{path.name}.tmp{os.getpid()}")
     try:
@@ -90,7 +90,7 @@ def ensure() -> tuple[ec.EllipticCurvePrivateKey | None, str | None]:
         if _stored():
             key = private_key()
             if key is None:
-                return None, (f"{PHONE_NOTIFY_KEY_ENV} in your PC's .env is not a sending key. Remove that line "
+                return None, (f"{NOTIFY_KEY_ENV} in your PC's .env is not a sending key. Remove that line "
                               "and turn this on again.")
             return key, None
         key = webpush.new_private_key()
@@ -99,5 +99,5 @@ def ensure() -> tuple[ec.EllipticCurvePrivateKey | None, str | None]:
         except OSError as exc:
             logger.warning("PHONE NOTIFY: could not write the sending key to .env", exc_info=True)
             return None, f"Your PC could not save its sending key to .env ({type(exc).__name__}). Nothing was turned on."
-        logger.warning("PHONE NOTIFY: made this PC's sending key (%s in .env)", PHONE_NOTIFY_KEY_ENV)
+        logger.warning("PHONE NOTIFY: made this PC's sending key (a new line in .env)")
         return key, None

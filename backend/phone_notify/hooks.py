@@ -26,11 +26,11 @@ from phone_notify.constants_phone_notify import (
     KIND_LOSS_LIMIT,
     KIND_SETUP,
     KIND_TEST,
-    PHONE_NOTIFY_ACCOUNT_VENUES,
-    PHONE_NOTIFY_MARKET_KINDS,
-    PHONE_NOTIFY_SETUP_STAGES,
-    PHONE_NOTIFY_TTL_ACCOUNT_SEC,
-    PHONE_NOTIFY_TTL_MARKET_SEC,
+    NOTIFY_ACCOUNT_VENUES,
+    NOTIFY_MARKET_KINDS,
+    NOTIFY_SETUP_STAGES,
+    NOTIFY_TTL_ACCOUNT_SEC,
+    NOTIFY_TTL_MARKET_SEC,
 )
 
 logger = logging.getLogger(__name__)
@@ -64,7 +64,7 @@ def _how(symbol: str) -> str | None:
 
 def _deliver(kind: str, message: dict[str, Any]) -> dict[str, Any]:
     global _last_sent
-    ttl = PHONE_NOTIFY_TTL_MARKET_SEC if kind in PHONE_NOTIFY_MARKET_KINDS else PHONE_NOTIFY_TTL_ACCOUNT_SEC
+    ttl = NOTIFY_TTL_MARKET_SEC if kind in NOTIFY_MARKET_KINDS else NOTIFY_TTL_ACCOUNT_SEC
     try:
         result = sender.deliver(message, ttl=ttl)
     except Exception as exc:
@@ -110,7 +110,7 @@ def hod_alert(alert: dict[str, Any]) -> str:
 def setup_line(line: dict[str, Any]) -> str:
     """One line of the live setup scanner's journal (``setup_scanner.hooks.default_journal``)."""
     stage = str(line.get("event") or "")
-    if stage not in PHONE_NOTIFY_SETUP_STAGES:
+    if stage not in NOTIFY_SETUP_STAGES:
         return "not_a_stage"
     setup_id = str(line.get("setup_id") or "")
     if setup_id and isinstance(line.get("setup"), dict):
@@ -133,7 +133,7 @@ def new_leaders(entries: list[dict[str, Any]], auto_n: Any = None) -> None:
 
 def fill(*, symbol: Any, side: Any, qty: Any, price: Any, venue: str, owner: str | None, fill_id: Any = None) -> str:
     """One fill on Live or Paper. A Sim fill is dropped here: a replay is another day's market."""
-    if venue not in PHONE_NOTIFY_ACCOUNT_VENUES:
+    if venue not in NOTIFY_ACCOUNT_VENUES:
         return "not_this_venue"
     event = {"symbol": symbol, "side": side, "qty": qty, "price": price, "venue": venue, "owner": owner, "id": fill_id}
     return offer(KIND_FILL, event, lambda: words.fill(event))
@@ -150,7 +150,7 @@ def live_fill(trade: Any, ib_fill: Any) -> str:
 
 def practice_fill(row: dict[str, Any] | None, venue: str) -> str:
     """A practice ledger row that just filled (``practice.broker``); whose it is comes from the row."""
-    if not row or venue not in PHONE_NOTIFY_ACCOUNT_VENUES:
+    if not row or venue not in NOTIFY_ACCOUNT_VENUES:
         return "not_this_venue"
     try:
         from owners.whose import by_of

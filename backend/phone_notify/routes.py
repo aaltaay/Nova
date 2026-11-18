@@ -23,9 +23,9 @@ from pydantic import BaseModel, Field
 from phone.routes import require_session
 from phone_notify import hooks, store, vapid
 from phone_notify.constants_phone_notify import (
-    PHONE_NOTIFY_API_PREFIX,
-    PHONE_NOTIFY_ENDPOINT_MAX_CHARS,
-    PHONE_NOTIFY_SCHEMA_VERSION,
+    NOTIFY_API_PREFIX,
+    NOTIFY_ENDPOINT_MAX_CHARS,
+    NOTIFY_SCHEMA_VERSION,
     REASON_BAD_ADDRESS,
     REASON_BAD_SETTINGS,
     REASON_NO_DEVICE,
@@ -34,7 +34,7 @@ from phone_notify.constants_phone_notify import (
 )
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix=PHONE_NOTIFY_API_PREFIX, tags=["phone"])
+router = APIRouter(prefix=NOTIFY_API_PREFIX, tags=["phone"])
 
 
 class Keys(BaseModel):
@@ -43,12 +43,12 @@ class Keys(BaseModel):
 
 
 class Subscription(BaseModel):
-    endpoint: str = Field(min_length=1, max_length=PHONE_NOTIFY_ENDPOINT_MAX_CHARS)
+    endpoint: str = Field(min_length=1, max_length=NOTIFY_ENDPOINT_MAX_CHARS)
     keys: Keys
 
 
 class Address(BaseModel):
-    endpoint: str = Field(min_length=1, max_length=PHONE_NOTIFY_ENDPOINT_MAX_CHARS)
+    endpoint: str = Field(min_length=1, max_length=NOTIFY_ENDPOINT_MAX_CHARS)
 
 
 def _refuse(code: str, text: str, status: int) -> HTTPException:
@@ -59,7 +59,7 @@ def view() -> dict[str, Any]:
     """What the phone's screens read. The public key is made by the first subscribe, so it is null before it."""
     doc = store.load()
     return {
-        "schema_version": PHONE_NOTIFY_SCHEMA_VERSION,
+        "schema_version": NOTIFY_SCHEMA_VERSION,
         "available": True,
         "why_unavailable": None,
         "public_key": vapid.public_key_b64(),

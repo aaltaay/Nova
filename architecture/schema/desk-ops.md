@@ -1411,8 +1411,10 @@ handler) shows it and, on a tap, tells the open page the hash or opens `/phone.h
 **Sending** (`phone_notify/sender.py`): one https POST per phone to its push address, with `TTL` (600 s for a
 market alert, 6 hours for a fill or the loss limit), `Urgency: high`, and an RFC 8292 token signed by the
 PC's key, good for 12 hours and for that push service only. A push address is taken only on `https`, port
-443, and a host on the list (`fcm.googleapis.com`, `web.push.apple.com`, `*.push.services.mozilla.com`,
-`*.notify.windows.com`, `*.push.apple.com`). 404 or 410 takes the phone off the list. The sending runs on a
+443, and one of three hosts by exact name (`fcm.googleapis.com`, `updates.push.services.mozilla.com`,
+`web.push.apple.com`); the PC posts to the address rebuilt on the list's own host name (`sender.push_url`),
+checked again at the moment of sending, so a file edited by hand cannot send it elsewhere. 404 or 410
+takes the phone off the list. The sending runs on a
 thread of its own; a producer never waits for it and is never failed by it.
 
 **Kept on the PC:**

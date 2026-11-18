@@ -15,15 +15,18 @@ import logging
 import time
 from typing import Any
 
+from urllib.parse import urlsplit, urlunsplit
+
 import requests
 
 from phone_notify import store, vapid, webpush
 from phone_notify.constants_phone_notify import (
-    PHONE_NOTIFY_RECORD_SIZE,
-    PHONE_NOTIFY_SEND_TIMEOUT_SEC,
-    PHONE_NOTIFY_SUBJECT_DEFAULT,
-    PHONE_NOTIFY_SUBJECT_ENV,
-    PHONE_NOTIFY_TOKEN_SEC,
+    NOTIFY_PUSH_HOSTS,
+    NOTIFY_RECORD_SIZE,
+    NOTIFY_SEND_TIMEOUT_SEC,
+    NOTIFY_SUBJECT_DEFAULT,
+    NOTIFY_SUBJECT_ENV,
+    NOTIFY_TOKEN_SEC,
 )
 
 logger = logging.getLogger(__name__)
@@ -33,12 +36,26 @@ _GONE = (404, 410)
 def _subject() -> str:
     import os
 
-    return (os.environ.get(PHONE_NOTIFY_SUBJECT_ENV) or "").strip() or PHONE_NOTIFY_SUBJECT_DEFAULT
+    return (os.environ.get(NOTIFY_SUBJECT_ENV) or "").strip() or NOTIFY_SUBJECT_DEFAULT
 
 
-def _post(endpoint: str, body: bytes, headers: dict[str, str]) -> int:
-    """One POST to a push service; its status. Split out so a test sends nothing."""
-    return requests.post(endpoint, data=body, headers=headers, timeout=PHONE_NOTIFY_SEND_TIMEOUT_SEC,
+def push_url(endpoint: str) -> str | None:
+    """The address to post to: ``endpoint``'s path on a host taken from the list of push services itself.
+
+    None when the stored address does not name one of them over plain https. The store refuses such an
+    address when a phone subscribes; this is the same rule at the moment of sending, so a file edited by
+    hand cannot make the PC post anywhere else."""
+    parts = urlsplit(endpoint)
+    named = (parts.hostname or "").lower()
+    host = next((known for known in NOTIFY_PUSH_HOSTS if known == named), None)
+    if host is None or parts.scheme != "https" or parts.username or parts.password or parts.port not in (None, 443):
+        return None
+    return urlunsplit(("https", host, parts.path, parts.query, ""))
+
+
+def _post(url: str, body: bytes, headers: dict[str, str]) -> int:
+    """One POST to a push service (``url`` from ``push_url``); its status. Split out so a test sends nothing."""
+    return requests.post(url, data=body, headers=headers, timeout=NOTIFY_SEND_TIMEOUT_SEC,
                          allow_redirects=False).status_code
 
 
@@ -68,16 +85,22 @@ def deliver(message: dict[str, Any], *, ttl: int, now: float | None = None) -> d
     sent = failed = gone = 0
     error: str | None = None
     for phone in phones:
+        url = push_url(phone["endpoint"])
+        if url is None:
+            failed += 1
+            error = "a stored address is not a push service's; turn Notify this phone off and on"
+            logger.warning("PHONE NOTIFY: phone %s has an address that is not a push service's; not notified", phone["id"])
+            continue
         try:
             body = webpush.encrypt(payload, webpush.b64url_decode(phone["p256dh"]), webpush.b64url_decode(phone["auth"]),
-                                   record_size=PHONE_NOTIFY_RECORD_SIZE)
-            status = _post(phone["endpoint"], body, {
+                                   record_size=NOTIFY_RECORD_SIZE)
+            status = _post(url, body, {
                 "TTL": str(int(ttl)),
                 "Urgency": "high",
                 "Content-Encoding": "aes128gcm",
                 "Content-Type": "application/octet-stream",
                 "Authorization": webpush.vapid_authorization(
-                    phone["endpoint"], key, subject=_subject(), expires_at=int(ts) + PHONE_NOTIFY_TOKEN_SEC),
+                    url, key, subject=_subject(), expires_at=int(ts) + NOTIFY_TOKEN_SEC),
             })
         except (requests.RequestException, ValueError) as exc:
             failed += 1

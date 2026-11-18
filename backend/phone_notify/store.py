@@ -27,16 +27,15 @@ from urllib.parse import urlsplit
 from phone_notify import webpush
 from phone_notify.constants_phone_notify import (
     HOD_MODES,
-    PHONE_NOTIFY_DEFAULT_SETTINGS,
-    PHONE_NOTIFY_EARLIEST,
-    PHONE_NOTIFY_ENDPOINT_MAX_CHARS,
-    PHONE_NOTIFY_FILE,
-    PHONE_NOTIFY_LATEST,
-    PHONE_NOTIFY_MAX_DEVICES,
-    PHONE_NOTIFY_PUSH_HOST_SUFFIXES,
-    PHONE_NOTIFY_PUSH_HOSTS,
-    PHONE_NOTIFY_SCHEMA_VERSION,
-    PHONE_NOTIFY_STEP_MIN,
+    NOTIFY_DEFAULT_SETTINGS,
+    NOTIFY_EARLIEST,
+    NOTIFY_ENDPOINT_MAX_CHARS,
+    NOTIFY_FILE,
+    NOTIFY_LATEST,
+    NOTIFY_MAX_DEVICES,
+    NOTIFY_PUSH_HOSTS,
+    NOTIFY_SCHEMA_VERSION,
+    NOTIFY_STEP_MIN,
 )
 
 logger = logging.getLogger(__name__)
@@ -49,7 +48,7 @@ _kept: tuple[Path, dict[str, Any]] | None = None
 def path() -> Path:
     from paths import cache_dir
 
-    return cache_dir() / PHONE_NOTIFY_FILE
+    return cache_dir() / NOTIFY_FILE
 
 
 def minutes_of(hhmm: Any) -> int | None:
@@ -75,17 +74,17 @@ def normalize_settings(raw: Any) -> tuple[dict[str, Any] | None, str | None]:
     if not isinstance(days, list) or any(isinstance(d, bool) or not isinstance(d, int) or not 0 <= d <= 6 for d in days):
         return None, "Days are numbers from 0 (Monday) to 6 (Sunday)."
     start, end = minutes_of(raw.get("start")), minutes_of(raw.get("end"))
-    lo, hi = minutes_of(PHONE_NOTIFY_EARLIEST), minutes_of(PHONE_NOTIFY_LATEST)
+    lo, hi = minutes_of(NOTIFY_EARLIEST), minutes_of(NOTIFY_LATEST)
     if start is None or end is None:
         return None, "The hours are written HH:MM."
-    if start % PHONE_NOTIFY_STEP_MIN or end % PHONE_NOTIFY_STEP_MIN:
+    if start % NOTIFY_STEP_MIN or end % NOTIFY_STEP_MIN:
         return None, "The hours are on the hour or the half hour."
     if start < lo or end > hi:
-        return None, f"The hours stay inside {PHONE_NOTIFY_EARLIEST} to {PHONE_NOTIFY_LATEST} New York time."
+        return None, f"The hours stay inside {NOTIFY_EARLIEST} to {NOTIFY_LATEST} New York time."
     if end <= start:
         return None, "The end comes after the start."
     return {
-        "schema_version": PHONE_NOTIFY_SCHEMA_VERSION,
+        "schema_version": NOTIFY_SCHEMA_VERSION,
         "hod_momo": raw["hod_momo"],
         **{name: raw[name] for name in _SWITCHES},
         "days": sorted(set(days)),
@@ -96,13 +95,13 @@ def normalize_settings(raw: Any) -> tuple[dict[str, Any] | None, str | None]:
 
 def check_endpoint(endpoint: Any) -> str | None:
     """Why ``endpoint`` is not a push address the PC will post to; None when it is one."""
-    if not isinstance(endpoint, str) or not endpoint or len(endpoint) > PHONE_NOTIFY_ENDPOINT_MAX_CHARS:
+    if not isinstance(endpoint, str) or not endpoint or len(endpoint) > NOTIFY_ENDPOINT_MAX_CHARS:
         return "That is not a push address."
     parts = urlsplit(endpoint)
     host = (parts.hostname or "").lower()
     if parts.scheme != "https" or parts.username or parts.password or parts.port not in (None, 443):
         return "A push address is a plain https address."
-    if host in PHONE_NOTIFY_PUSH_HOSTS or any(host.endswith(suffix) for suffix in PHONE_NOTIFY_PUSH_HOST_SUFFIXES):
+    if host in NOTIFY_PUSH_HOSTS:
         return None
     return f"{host or 'That host'} is not a push service Nova sends to."
 
@@ -113,8 +112,8 @@ def device_id(endpoint: str) -> str:
 
 
 def _defaults() -> dict[str, Any]:
-    return {"schema_version": PHONE_NOTIFY_SCHEMA_VERSION,
-            "settings": copy.deepcopy(PHONE_NOTIFY_DEFAULT_SETTINGS), "devices": []}
+    return {"schema_version": NOTIFY_SCHEMA_VERSION,
+            "settings": copy.deepcopy(NOTIFY_DEFAULT_SETTINGS), "devices": []}
 
 
 def _clean_device(raw: Any) -> dict[str, Any] | None:
@@ -150,17 +149,17 @@ def _read(file: Path) -> dict[str, Any]:
         except (OSError, ValueError):
             logger.warning("PHONE NOTIFY: %s is unreadable; notifications are off until it is saved again", file)
             return _defaults()
-        if not isinstance(doc, dict) or doc.get("schema_version") != PHONE_NOTIFY_SCHEMA_VERSION:
+        if not isinstance(doc, dict) or doc.get("schema_version") != NOTIFY_SCHEMA_VERSION:
             logger.warning("PHONE NOTIFY: %s has schema_version %r, not %s; it is not read and notifications "
                            "are off until it is saved again", file, (doc or {}).get("schema_version") if isinstance(doc, dict) else None,
-                           PHONE_NOTIFY_SCHEMA_VERSION)
+                           NOTIFY_SCHEMA_VERSION)
             return _defaults()
         settings, error = normalize_settings(doc.get("settings"))
         if settings is None:
             logger.warning("PHONE NOTIFY: the saved settings are not valid (%s); read as everything off", error)
-            settings = copy.deepcopy(PHONE_NOTIFY_DEFAULT_SETTINGS)
+            settings = copy.deepcopy(NOTIFY_DEFAULT_SETTINGS)
         devices = [d for d in (_clean_device(raw) for raw in doc.get("devices") or []) if d is not None]
-        return {"schema_version": PHONE_NOTIFY_SCHEMA_VERSION, "settings": settings, "devices": devices}
+        return {"schema_version": NOTIFY_SCHEMA_VERSION, "settings": settings, "devices": devices}
 
 
 def _save(doc: dict[str, Any]) -> None:
@@ -210,8 +209,8 @@ def add_device(endpoint: Any, p256dh: Any, auth: Any, *, now: float | None = Non
     with _lock:
         doc = load()
         others = [d for d in doc["devices"] if d["id"] != device["id"]]
-        if len(others) >= PHONE_NOTIFY_MAX_DEVICES:
-            return (f"{PHONE_NOTIFY_MAX_DEVICES} phones are subscribed already. Turn notifications off on one "
+        if len(others) >= NOTIFY_MAX_DEVICES:
+            return (f"{NOTIFY_MAX_DEVICES} phones are subscribed already. Turn notifications off on one "
                     "you no longer use.")
         doc["devices"] = [*others, device]
         _save(doc)

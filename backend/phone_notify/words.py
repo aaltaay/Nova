@@ -10,9 +10,9 @@ from datetime import datetime
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from phone_notify.constants_phone_notify import PHONE_NOTIFY_BODY_MAX_CHARS, PHONE_NOTIFY_TZ
+from phone_notify.constants_phone_notify import NOTIFY_BODY_MAX_CHARS, NOTIFY_TZ
 
-_ET = ZoneInfo(PHONE_NOTIFY_TZ)
+_ET = ZoneInfo(NOTIFY_TZ)
 _VENUE = {"live": "Live", "paper": "Paper", "sim": "Sim"}
 _OWNER = {"you": "You", "claude": "Claude", "brain": "The brain", "earlier_bots": "Earlier bots"}
 _LINE = {"account": "the whole account", "you": "your trades", "bots": "Claude's and the brain's trades",
@@ -67,7 +67,7 @@ def money(value: Any) -> str | None:
 
 
 def _join(parts: list[str | None]) -> str:
-    return " · ".join(p for p in parts if p)[:PHONE_NOTIFY_BODY_MAX_CHARS]
+    return " · ".join(p for p in parts if p)[:NOTIFY_BODY_MAX_CHARS]
 
 
 def _trade_hash(symbol: str) -> str:
