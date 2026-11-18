@@ -1049,6 +1049,8 @@ were the bots' hotkeys, sized by sleeves and lists that retired with them.
   no new entry until 04:00 ET, its open trade keeps its exits, and On is refused (`TRADER_DAY_STOP`). At its
   `flat_by` (`trader-limits.json`, 15:55 ET) Nova cancels its working orders and sells its shares (`brain.watcher`,
   every `BRAIN_TICK_SEC`), unless they were handed to you.
+- **The morning wake.** The same watcher turns the brain's switch On once each trading day from 04:00 ET, unless
+  you set it that day (`traders.md` "The switches", ADR 072 Amendment 2). The brain's program never flips it.
 - **A brain that stops answering sells nothing.** Its stop and target keep resting, flat by still closes it, and
   its pill says "Brain · On · its program is not running". Nothing restarts it from Nova.
 - **Events** (`events`, newest first, the last 50 today): `claim`, `watch`, `armed`, `buy_set`, `fill`, `stop_moved`,

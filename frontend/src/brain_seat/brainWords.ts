@@ -232,15 +232,18 @@ export interface BrainHelp {
 export const BRAIN_OFF_HELP_GENERIC = 'no new trades. Its working entries are cancelled. Its open trade and its stop '
   + 'stay as they are, and the trade is yours to close.';
 export const BRAIN_ON_HELP = 'the brain may trade again. A trade it handed you stays yours until you close it.';
+/** Said after either help while Nova wakes the brain each trading morning: Off is for today. */
+export const BRAIN_WAKES_HELP = 'It turns itself On again the next trading morning.';
 export const brainOffHelp = (symbol: string | null): string => (symbol
   ? `no new trades. Its working entries are cancelled. ${symbol} and its stop stay as they are, and ${symbol} is yours to close.`
   : BRAIN_OFF_HELP_GENERIC);
 
 /** "Off: no new trades. ... XLAB is yours to close." while On; while Off, why On is refused or what On does. */
 export function brainHelp(status: BrainSeatStatus): BrainHelp {
-  if (status.on) return { lead: 'Off:', text: brainOffHelp(status.position?.symbol ?? null) };
+  const wakes = status.wakes ? ` ${BRAIN_WAKES_HELP}` : '';
+  if (status.on) return { lead: 'Off:', text: brainOffHelp(status.position?.symbol ?? null) + wakes };
   if (status.why_not_on) return { lead: null, text: status.why_not_on.error };
-  return { lead: 'On:', text: BRAIN_ON_HELP };
+  return { lead: 'On:', text: BRAIN_ON_HELP + wakes };
 }
 
 /** The tag on the Trader's Level 2 frame while the pane's stock is the brain's lane's. */

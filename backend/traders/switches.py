@@ -6,7 +6,8 @@ were set on (``market.session_key_for_ts``: 04:00 ET rolls it, a weekend belongs
 desk day, a missing one, an unknown version or an unreadable one reads every switch Off -- the last two with
 ``error`` saying why. A restart within the day reads the file back, so a restart never hands a trade over by itself.
 
-On is refused in words (``on_refusal``); Off never is (``traders.off`` does what Off means).
+On is refused in words (``on_refusal``); Off never is (``traders.off`` does what Off means). The brain's switch
+also turns On by itself each trading morning (``traders.wake``, ``turn_on_untouched``).
 """
 from __future__ import annotations
 
@@ -105,7 +106,7 @@ def on_refusal(trader: str, now: float | None = None) -> tuple[str, str] | None:
     from market import now_et
     from sim.mode import venue
 
-    name = OWNER_NAMES.get(trader, trader)
+    name = said(trader)
     if venue() == "live":
         return TRADER_LIVE, f"The desk is on Live: {name} trades Paper and Sim only, so it stays Off."
     if trader == OWNER_CLAUDE and (why := _claude_day_stop()):
@@ -115,13 +116,24 @@ def on_refusal(trader: str, now: float | None = None) -> tuple[str, str] | None:
     from traders import limits
 
     flat_by = str(limits.of(trader)["flat_by"])
-    clock = now_et() if now is None else _et(now)
+    clock = now_et() if now is None else et(now)
     if clock.weekday() < 5 and clock.strftime("%H:%M") >= flat_by:
-        return TRADER_PAST_FLAT_BY, f"It is past {name}'s flat-by time ({flat_by} ET): it can turn On tomorrow."
+        from traders import wake
+
+        then = ("it turns On by itself the next trading morning" if wake.wakes(trader)
+                else "it can turn On tomorrow")
+        return TRADER_PAST_FLAT_BY, f"It is past {name}'s flat-by time ({flat_by} ET): {then}."
     return None
 
 
-def _et(ts: float) -> Any:
+def said(trader: str) -> str:
+    """The trader's name inside a sentence: "Claude", "the brain"."""
+    name = OWNER_NAMES.get(trader, trader)
+    return name[0].lower() + name[1:] if name.startswith("The ") else name
+
+
+def et(ts: float) -> Any:
+    """``ts`` on the ET clock."""
     from datetime import datetime
 
     from market import ET
@@ -162,3 +174,27 @@ def set_switch(trader: str, on: bool, by: str, now: float | None = None) -> dict
         _write(desk_day(t), switches)
     logger.info("TRADERS: %s's switch %s (%s)", trader, "On" if on else "Off", by)
     return switches[trader]
+
+
+def turn_on_untouched(trader: str, by: str, now: float | None = None) -> dict[str, Any] | None:
+    """Turn ``trader`` On only while nobody has set its switch this desk day; None when somebody has. The check
+    and the write are one step under the lock, so a press landing at the same moment is never overwritten."""
+    t = now_ts() if now is None else float(now)
+    current(t)                                              # the day's rollover first
+    today = desk_day(t)
+    with _lock:
+        doc, _ = _read()
+        if doc is None or doc.get("day") != today or not isinstance(doc.get("switches"), dict):
+            saved: dict[str, Any] = {}
+        else:
+            saved = doc["switches"]
+        rows = {}
+        for name in AI_TRADERS:
+            row = saved.get(name) if isinstance(saved.get(name), dict) else {}
+            rows[name] = {"on": row.get("on") is True, "at": row.get("at"), "by": row.get("by")}
+        if rows[trader]["on"] or rows[trader]["at"] is not None:
+            return None
+        rows[trader] = {"on": True, "at": t, "by": by}
+        _write(today, rows)
+    logger.info("TRADERS: %s's switch On (%s)", trader, by)
+    return rows[trader]

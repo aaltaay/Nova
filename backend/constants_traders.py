@@ -24,6 +24,11 @@ TRADER_UNKNOWN = "TRADER_UNKNOWN"
 # The door refuses an AI trader's new order while its switch is Off.
 TRADER_OFF = "TRADER_OFF"
 
+# The traders that turn themselves On each trading morning (ADR 072 Amendment 2), each with the ``.env`` name
+# that, set to 0, leaves its switch to the operator's press alone. ``by`` on a switch the schedule set.
+TRADER_WAKES_ENV = {"brain": "NOVA_BRAIN_WAKES"}
+TRADER_SWITCH_BY_SCHEDULE = "schedule"
+
 # The trader's one state on its pill.
 TRADER_STATE_OFF = "off"
 TRADER_STATE_WATCHING = "watching"

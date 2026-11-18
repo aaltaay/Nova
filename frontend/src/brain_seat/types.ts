@@ -66,6 +66,8 @@ export interface BrainSeatStatus {
   /** The brain's program checked in lately; null on a backend that does not say (from before the brain's door). */
   connected: boolean | null;
   reading: BrainReading[];
+  /** Nova turns the brain's switch On by itself each trading morning (ADR 072 Amendment 2); false when not said. */
+  wakes: boolean;
   /** Newest first. */
   events: BrainEvent[];
   /** The payload's own `error` (the switches file could not be read), in Nova's words. */

@@ -229,6 +229,24 @@ it on level 2 working yet." Build order 5 is built ahead of 4, with three change
 
 Unchanged: the switch is the operator's alone and reads Off every morning at 04:00 ET; the brain never trades Live.
 
+## Amendment 2 (2026-11-17): the brain turns itself On each trading morning
+
+The operator, 2026-11-17, the evening the pill first showed: "Make sure the brain wakes up by itself. Right now, I
+cannot turn it on. It says it is past the brain flat by the way. It can turn on tomorrow. Make sure it's an auto
+turn-on, and if i turn it off, it just honor keep honoring its schedule". Decision 5 changes for the brain only:
+
+- **The brain's switch turns On by itself once each trading day**, from 04:00 ET, at the first moment On is not
+  refused (Live, its day stop, past its flat by) and nobody has set the switch that desk day (`traders.wake`). No
+  weekend or NYSE holiday wakes it. The 04:00 ET rollover still writes it Off first, handing what it held.
+- **Your press that day is the last word until the next morning.** Off does what Off always did and stays Off; the
+  next trading day's 04:00 ET turns it On again. That is the schedule, and Off never ends it.
+- **Claude's switch is unchanged**: Off every morning, On by your press alone.
+- `NOVA_BRAIN_WAKES=0` in `.env` ends the schedule; the switch is then your press alone. The operator's words above
+  are the opt-in, so the schedule ships on; a setting on the desk for it needs its mockup first.
+
+Unchanged: only you press the switch (Claude, the brain's program and the phone cannot); the brain trades Paper
+only and never Live; a wake sends no order by itself -- the door's own checks stand before every entry.
+
 ## Consequences
 
 - Each trader's record is its own, and a takeover never moves P&L between records.
