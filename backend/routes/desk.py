@@ -32,8 +32,8 @@ def get_desk_venue() -> dict:
 async def post_desk_venue(body: DeskVenueRequest) -> dict:
     """Settle the desk venue. 400 on anything but live / paper / sim.
 
-    The answer's ``left`` is always empty: the Nova entries a venue change used to cancel first (ADR 042 F)
-    retired with the bots (ADR 072)."""
+    The answer's ``left`` lists Claude's and the brain's unfilled entries cancelled on leaving Paper
+    (``traders.pause``, ADR 072 Amendment 4); the desk says each one in a notice."""
     key = (body.venue or "").strip().lower()
     if key not in DESK_VENUES:
         raise HTTPException(

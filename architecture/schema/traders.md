@@ -96,6 +96,18 @@ a handed position (`OWNERS_TRADERS_STOCK`). A retired bot's shares still open at
   loss line's Auto sell still go. Each step is an event on the trader's stream (`switch_off`, `handed`: "The brain is off: its 200
   XLAB are yours to close. Its stop at 4.19 keeps resting.").
 
+**Paused** (`backend/traders/pause.py`, ADR 072 Amendments 3 and 4). An AI trader opens trades on `TRADER_VENUE`
+(Paper). While its switch is On and the desk shows another venue (Live or Sim) it is paused: `paused` is
+`{reason: "TRADER_PAUSED", venue, text}` (else null), its switch and its lane stay as they are, its open Paper trade
+keeps its exits, and its close, cancel and stop raise still go (`bot.md`, `agent-trader.md`). When the desk leaves
+Paper (`sim.mode.set_venue`), Nova cancels every unfilled entry of Claude's and the brain's on Paper (source
+`cancel_working`, code `TRADER_PAUSED`; an entry's waiting exits go with it, the exits of shares held keep resting),
+so no position of theirs opens during the pause. Each cancel is a row on the switch's `left`: `{venue: "paper",
+symbol, order_id, by: "claude" | "brain", text}`. A trader whose switch is On gets one line on its stream when the
+pause starts (`paused`) and when the desk is back on Paper (`resumed`). A cancel that fails is logged and said on
+the stream; the venue change still happens. The phone's venue menu names the entries a switch would cancel
+(`GET /api/phone/venue/effects`).
+
 **The limits** (`backend/traders/limits.py`). File `trader-limits.json` in the operator cache, rewritten whole and
 atomically: `{schema_version: 1, traders: {claude: {max_shares, risk_usd, budget_usd, flat_by}, brain: {...}},
 set_at}`. `max_shares` whole shares 1 to 10,000; `risk_usd` whole dollars 1 to 10,000 (the most between entry and
@@ -111,14 +123,15 @@ defaults with `error`; the next save writes a fresh file. A trader's daily loss 
   `TRADER` is `{name, on, at, can_turn_on, why_not_on, done_for_today, state, text, symbol, lane: {symbol, depth,
   tape}, position: {symbol, qty, avg_cost, mark, unrealized_pnl} | null, handed: [{symbol, qty, stop_price}], today:
   {pnl, loss_limit_usd, tripped_at}, limits: {max_shares, risk_usd, budget_usd, budget_used_usd, flat_by}, note:
-  {text, at} | null}`. `state` is one of `off`, `watching`, `buy_set`, `in_trade`, `done`; `text` is the pill's words
+  {text, at} | null, paused: {reason, venue, text} | null}`. `state` is one of `off`, `watching`, `buy_set`, `in_trade`, `done`; `text` is the pill's words
   ("Brain · In XLAB +$42.00", "Brain · Off · XLAB is yours to close", "Brain · Done for today -$500"). Claude's
   `state`, `symbol`, `lane` and `note` are the seat's (`agent-trader.md`); the brain's are its door's (`bot.md`): `symbol` and `lane` from lane 3 (`lane.why` its
   words for naming the stock), `note` its last note, `state` `off`, `watching`, `buy_set`, `in_trade` or `done`, and
   four fields only the brain has: `connected` (its program's heartbeat is fresh), `reading: [{symbol, text, source:
   "lane" | "level1"}]`, `events` (`bot.md`) and `wakes` (boolean: it turns itself On each trading morning; past its
-  flat by `why_not_on.error` then ends "it turns On by itself the next trading morning"). On and not connected reads "Brain · On · its program is not running". `position` and `handed` are the desk venue's account
-  (Paper while the desk is on Live); `today.loss_limit_usd` is each trader's own day stop in code until the loss lines land.
+  flat by `why_not_on.error` then ends "it turns On by itself the next trading morning"). On and not connected reads "Brain · On · its program is not running". `position`, `handed`, `today` and `limits.budget_used_usd` are the trader's own account's: Paper, whatever the desk
+  shows. While `paused` is set, `text` says so ("Brain · Paused · desk on Live", or "Brain · In XLAB +$42.00 · paused"
+  with a trade open); `today.loss_limit_usd` is each trader's own day stop in code until the loss lines land.
 - `PUT /api/traders/{trader}/switch {on: boolean}` -> the `GET` shape, or the refusal above. `404 TRADER_UNKNOWN`
   for another name.
 - `PUT /api/traders/{trader}/limits {max_shares?, risk_usd?, budget_usd?, flat_by?}` -> the `GET` shape. `400

@@ -67,9 +67,24 @@ def _read(venue: str, readers: tuple[tuple[str, Callable[[str], list[Item]]], ..
     return items, unknown
 
 
-# What a venue switch changes on the desk itself, whatever it leaves behind: the padlock. The Bot it also turned
-# off retired with the bots (ADR 072); nothing of Nova's waits to fill on a venue any more.
-SWITCH_READERS: tuple[tuple[str, Callable[[str], list[Item]]], ...] = (("armed", _armed),)
+def _trader_entries(venue: str) -> list[Item]:
+    """Claude's and the brain's unfilled entries on Paper: leaving Paper cancels them (ADR 072 Amendment 4)."""
+    if venue != "paper":
+        return []
+    from constants_owners import OWNER_NAMES
+    from traders import pause
+
+    return [_item("trader_entry", f"{OWNER_NAMES.get(e['trader'], e['trader'])}'s buy on {e['symbol']} is waiting: "
+                                  "switching cancels it", venue, e["symbol"])
+            for e in pause.entries_waiting()]
+
+
+# What a venue switch changes on the desk itself, whatever it leaves behind: the padlock, and Claude's and the
+# brain's unfilled entries on Paper (``traders.pause``). The Bot it also turned off retired with the bots (ADR 072).
+SWITCH_READERS: tuple[tuple[str, Callable[[str], list[Item]]], ...] = (
+    ("armed", _armed),
+    ("trader_entry", _trader_entries),
+)
 
 
 def switch_changes(venue: str) -> tuple[list[Item], list[dict]]:

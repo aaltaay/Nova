@@ -30,6 +30,8 @@ from brain.constants_brain import (
     BRAIN_NOT_CLAIMED_TEXT,
     BRAIN_NOT_PAPER,
     BRAIN_NOTE_MAX,
+    BRAIN_PADLOCK,
+    BRAIN_PADLOCK_TEXT,
     BRAIN_REFUSED,
     BRAIN_STALE,
     BRAIN_UNREAD_TEXT,
@@ -138,8 +140,7 @@ def arm(x_nova_brain_session: str | None = Header(default=None)) -> dict[str, An
     if venue() != BRAIN_VENUE:
         raise _refuse(BRAIN_NOT_PAPER, f"The desk is on {venue()}: the brain arms Paper only")
     if safety.locked_by() == "operator":
-        raise _refuse(BRAIN_REFUSED, "You locked the padlock: the brain never unlocks it. Open it when you want "
-                                     "the brain to trade.")
+        raise _refuse(BRAIN_PADLOCK, BRAIN_PADLOCK_TEXT)
     code, reason = safety.arm(True, actor="bot")
     if code:
         raise _refuse(code, reason)

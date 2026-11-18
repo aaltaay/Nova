@@ -1,8 +1,8 @@
 """``GET /api/traders``: Claude and the brain as the header pills and their panels show them (``traders.md``).
 
 Read-only. Claude's state, stock, position and note are its seat's (``agent_trader.view``); the brain's are its
-door's (``brain.view``). Figures are the desk venue's
-account (Paper on Live, where neither trades).
+door's (``brain.view``). Figures are each trader's own account's: Paper, whatever the desk shows (``TRADER_VENUE``).
+While the desk is off Paper an On trader reads ``paused`` (``traders.pause``).
 """
 from __future__ import annotations
 
@@ -10,13 +10,13 @@ import logging
 from typing import Any
 
 from constants_owners import AI_TRADERS, OWNER_BRAIN, OWNER_CLAUDE
-from constants_practice import PRACTICE_VENUE_PAPER, PRACTICE_VENUE_SIM
 from constants_traders import (
     TRADER_STATE_BUY_SET,
     TRADER_STATE_DONE,
     TRADER_STATE_IN_TRADE,
     TRADER_STATE_OFF,
     TRADER_STATE_WATCHING,
+    TRADER_VENUE,
     TRADERS_SCHEMA_VERSION,
 )
 
@@ -31,10 +31,12 @@ def _venue() -> str:
     return venue()
 
 
-def _broker(venue: str) -> Any:
+def _broker() -> Any:
+    """The account Claude and the brain trade on: Paper, whatever the desk shows. Reading the desk venue's account
+    instead hid a trader's open Paper trade while the desk was on Sim."""
     from practice.broker import for_venue
 
-    return for_venue(venue if venue in (PRACTICE_VENUE_PAPER, PRACTICE_VENUE_SIM) else PRACTICE_VENUE_PAPER)
+    return for_venue(TRADER_VENUE)
 
 
 def _money(pnl: float | None) -> str:
@@ -88,7 +90,7 @@ def _limits(trader: str, broker: Any) -> dict[str, Any]:
 def trader_view(trader: str, switch: dict[str, Any], now: float) -> dict[str, Any]:
     from traders import switches
 
-    broker = _broker(_venue())
+    broker = _broker()
     handed_rows = _handed(trader, broker)
     why = switches.on_refusal(trader, now)
     position = _position(trader, broker, {h["symbol"] for h in handed_rows})
@@ -98,7 +100,7 @@ def trader_view(trader: str, switch: dict[str, Any], now: float) -> dict[str, An
         "can_turn_on": why is None, "why_not_on": None if why is None else {"reason": why[0], "error": why[1]},
         "done_for_today": False, "state": TRADER_STATE_OFF, "text": f"{_SHORT[trader]} · Off", "symbol": None,
         "lane": {"symbol": None, "depth": False, "tape": False}, "position": position, "handed": handed_rows,
-        "today": today, "limits": _limits(trader, broker), "note": None,
+        "today": today, "limits": _limits(trader, broker), "note": None, "paused": None,
     }
     if trader == OWNER_CLAUDE:
         _claude(out)
@@ -114,7 +116,20 @@ def trader_view(trader: str, switch: dict[str, Any], now: float) -> dict[str, An
 
         out["wakes"] = wake.wakes(trader)
         _brain(out)
+    _paused(trader, out, now)
     return out
+
+
+def _paused(trader: str, out: dict[str, Any], now: float) -> None:
+    """While the desk is off Paper an On trader is paused, and its pill's words say so: never a silent block."""
+    from traders import pause
+
+    held = pause.paused(trader, now) if out["on"] else None
+    if held is None:
+        return
+    out["paused"] = held
+    out["text"] = (f"{out['text']} · paused" if out.get("position")
+                   else f"{_SHORT[trader]} · Paused · desk on {pause.venue_name(held['venue'])}")
 
 
 def _brain(out: dict[str, Any]) -> None:

@@ -16,29 +16,31 @@ from constants_owners import OWNER_BRAIN, OWNER_CLAUDE, OWNER_NAMES, TAKEOVER_CO
 logger = logging.getLogger(__name__)
 
 
-def _entry(row: dict[str, Any]) -> bool:
+def is_entry(row: dict[str, Any]) -> bool:
     """An unfilled order that opens or adds -- not an exit of shares held, nor a bracket leg waiting on an entry
     (that one goes with its entry)."""
     return (row.get("effect") == "opens" and row.get("parent_id") is None
             and row.get("leg_role") in (None, "parent"))
 
 
-def cancel_entries(trader: str) -> list[dict[str, Any]]:
-    """Cancel ``trader``'s unfilled entries on Paper and Sim; ``[{venue, order_id, symbol, ok, error}]``."""
+def cancel_entries(trader: str, *, venues: tuple[str, ...] | None = None, code: str = TAKEOVER_CODE,
+                   reason: str | None = None) -> list[dict[str, Any]]:
+    """Cancel ``trader``'s unfilled entries on Paper and Sim (or only on ``venues``);
+    ``[{venue, order_id, symbol, ok, error}]``. ``code`` and ``reason`` say why on the order (Off by default)."""
     from owners.whose import book_of, holder_of
     from practice.broker import for_venue, loaded
     from traders.handed import PRACTICE_VENUES
 
     out: list[dict[str, Any]] = []
-    for venue in PRACTICE_VENUES:
+    for venue in (PRACTICE_VENUES if venues is None else venues):
         broker = for_venue(venue) if venue == "paper" else loaded(venue)
         if broker is None:
             continue
         for row in list(broker.ledger.working_orders()):
-            if book_of(holder_of(row)) != trader or not _entry(row):
+            if book_of(holder_of(row)) != trader or not is_entry(row):
                 continue
-            answer = broker.cancel(int(row["order_id"]), source="cancel_working", code=TAKEOVER_CODE,
-                                   reason=f"{OWNER_NAMES.get(trader, trader)} was switched off")
+            answer = broker.cancel(int(row["order_id"]), source="cancel_working", code=code,
+                                   reason=reason or f"{OWNER_NAMES.get(trader, trader)} was switched off")
             out.append({"venue": venue, "order_id": int(row["order_id"]), "symbol": row.get("symbol"),
                         "ok": bool(answer.get("ok")), "error": answer.get("error")})
     return out

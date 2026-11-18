@@ -349,6 +349,103 @@ def test_on_live_the_brain_opens_nothing_and_its_paper_trade_keeps_working(paper
     assert book.positions() == {} and book.working() == []
 
 
+def test_leaving_paper_cancels_the_brains_waiting_buy_and_back_on_paper_it_trades_again(paper):
+    """ADR 072 Amendment 4: a buy still waiting on Paper is cancelled on the way to Live, so nothing opens during the
+    pause. The switch names it before and after, the pill says paused, the lane stays, and back on Paper the brain
+    arms the desk itself and trades."""
+    from agent_desk import safety as desk_safety
+
+    h = _brain(paper)
+    waiting = {**GOOD, "limit": 4.10, "stop": 3.90}
+    assert paper.client.post("/api/brain/order", headers=h, json=waiting).status_code == 200
+    assert len(book.entries()) == 1 and book.positions() == {}
+    items, unknown = desk_safety.switch_changes("paper")              # what the phone's venue menu reads first
+    assert unknown == [] and [i["kind"] for i in items] == ["armed", "trader_entry"]
+    assert items[1]["text"] == "The brain's buy on SMPL is waiting: switching cancels it"
+
+    moved = paper.client.post("/api/desk/venue", headers=paper.key, json={"venue": "live"})
+    assert moved.status_code == 200, moved.text
+    left = moved.json()["left"]
+    assert [(r["venue"], r["symbol"], r["by"]) for r in left] == [("paper", "SMPL", "brain")]
+    assert "was cancelled: the desk left Paper for Live" in left[0]["text"]
+    assert book.working() == [] and book.positions() == {}            # the entry took its waiting exits along
+    gone = for_venue("paper").ledger.order_row(left[0]["order_id"])
+    assert gone["reason_code"] == "TRADER_PAUSED"
+    brain = paper.client.get("/api/traders").json()["traders"]["brain"]
+    assert brain["on"] is True and brain["lane"]["symbol"] == "SMPL"   # no switch flipped, no lane moved
+    assert brain["paused"]["reason"] == "TRADER_PAUSED" and brain["paused"]["venue"] == "live"
+    assert brain["text"] == "Brain · Paused · desk on Live"
+    status = paper.client.get("/api/brain", headers=h).json()
+    assert status["trades_on"] == "paper" and status["paused"]["venue"] == "live"
+    assert status["can_enter"] is False and status["why_not"]["code"] == "BRAIN_NOT_PAPER"
+    assert [e["kind"] for e in session.events(paper.market.now)][:2] == ["paused", "paused"]
+    assert desk_safety.switch_changes("live") == ([], [])
+
+    back = paper.client.post("/api/desk/venue", headers=paper.key, json={"venue": "paper"})
+    assert back.status_code == 200 and back.json()["left"] == []
+    assert session.events(paper.market.now)[0]["kind"] == "resumed"
+    status = paper.client.get("/api/brain", headers=h).json()
+    assert status["paused"] is None and status["can_enter"] is True and status["lane"]["symbol"] == "SMPL"
+    assert _safety.armed() is False                                  # the round trip left the desk disarmed
+    assert paper.client.post("/api/brain/arm", headers=h).status_code == 200
+    assert paper.client.post("/api/brain/order", headers=h, json=GOOD).status_code == 200
+    assert book.positions()["SMPL"]["qty"] == 500
+
+
+@pytest.mark.parametrize("venue", ["live", "sim"])
+def test_a_paused_brains_paper_trade_stays_on_its_pill(paper, venue):
+    """Its figures are its own account's: Paper, whatever the desk shows. On Sim they used to read Sim's account, so
+    the open Paper trade vanished from the pill."""
+    h = _brain(paper)
+    assert paper.client.post("/api/brain/order", headers=h, json=GOOD).status_code == 200
+    set_venue(venue, persist=False)
+    brain = paper.client.get("/api/traders").json()["traders"]["brain"]
+    assert brain["position"]["symbol"] == "SMPL" and brain["position"]["qty"] == 500
+    assert brain["text"].startswith("Brain · In SMPL") and brain["text"].endswith(" · paused")
+    assert brain["paused"]["venue"] == venue and brain["state"] == "in_trade"
+    status = paper.client.get("/api/brain", headers=h).json()
+    assert status["position"]["symbol"] == "SMPL" and status["limits"]["budget_used_usd"] > 0
+    assert float(book.stop_of("SMPL")["stop_price"]) == 4.00            # its exits keep resting on Paper
+    set_venue("paper", persist=False)
+    assert paper.client.get("/api/traders").json()["traders"]["brain"]["paused"] is None
+
+
+def test_a_brain_that_is_off_is_not_paused(paper):
+    from traders import pause, switches
+
+    switches.set_switch("brain", False, "test")
+    set_venue("live")
+    brain = paper.client.get("/api/traders").json()["traders"]["brain"]
+    assert brain["paused"] is None and brain["text"] == "Brain · Off" and pause.paused("brain") is None
+    assert session.events(paper.market.now) == []                       # nothing to say: it was not trading
+
+
+def test_a_padlock_you_locked_is_the_brains_why_not(paper):
+    """Its arm would be refused, so its status says so before it tries: never a silent block."""
+    h = _brain(paper)
+    _safety.arm(False, actor="operator")
+    status = paper.client.get("/api/brain", headers=h).json()
+    assert status["can_enter"] is False and status["why_not"]["code"] == "BRAIN_PADLOCK"
+    assert "You locked the padlock" in status["why_not"]["text"]
+    assert paper.client.post("/api/brain/arm", headers=h).json()["detail"]["reason"] == "BRAIN_PADLOCK"
+    _safety.arm(True, actor="operator")
+    assert paper.client.get("/api/brain", headers=h).json()["can_enter"] is True
+
+
+def test_a_venue_change_never_fails_on_a_traders_book(paper, monkeypatch):
+    from traders import off
+
+    def unreadable(*args, **kwargs):
+        raise RuntimeError("the ledger is locked")
+
+    _brain(paper)
+    monkeypatch.setattr(off, "cancel_entries", unreadable)
+    moved = paper.client.post("/api/desk/venue", headers=paper.key, json={"venue": "live"})
+    assert moved.status_code == 200 and moved.json()["venue"] == "live" and moved.json()["left"] == []
+    said = session.events(paper.market.now)[0]
+    assert said["kind"] == "paused" and "could not read the brain's orders on Paper" in said["text"]
+
+
 def test_only_a_traders_own_stop_moved_up_may_name_paper(paper):
     """The door's own check of a stop raise (``execution.stop_raise``): nothing else shaped like it names a venue."""
     from execution import venue_door
