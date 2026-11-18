@@ -63,6 +63,11 @@ export interface BrainSeatStatus {
     flat_by: string | null;
   };
   note: { text: string; at: number } | null;
+  /**
+   * Set while the brain is On and the desk is off Paper (ADR 072 Amendment 4): the venue the desk shows, and the
+   * whole reason in Nova's words (the pill's tip). Null otherwise, and on a backend that does not say.
+   */
+  paused?: { venue: string; text: string } | null;
   /** The brain's program checked in lately; null on a backend that does not say (from before the brain's door). */
   connected: boolean | null;
   reading: BrainReading[];

@@ -410,7 +410,7 @@ def test_leaving_paper_cancels_claudes_waiting_buy_and_its_status_says_paused(pa
     assert status["paused"]["reason"] == "TRADER_PAUSED" and status["paused"]["venue"] == "live"
     assert [e["kind"] for e in status["events"]][:2] == ["paused", "paused"]
     claude = paper.client.get("/api/traders").json()["traders"]["claude"]
-    assert claude["paused"]["venue"] == "live" and claude["text"] == "Claude · Paused · desk on Live"
+    assert claude["paused"]["venue"] == "live" and claude["text"] == "Claude · Paper only · paused while you're on Live" == status["text"]
     set_venue("paper")
     assert paper.client.get("/api/agent/trader").json()["paused"] is None
 

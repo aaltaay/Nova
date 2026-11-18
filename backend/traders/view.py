@@ -128,8 +128,9 @@ def _paused(trader: str, out: dict[str, Any], now: float) -> None:
     if held is None:
         return
     out["paused"] = held
-    out["text"] = (f"{out['text']} · paused" if out.get("position")
-                   else f"{_SHORT[trader]} · Paused · desk on {pause.venue_name(held['venue'])}")
+    position = out.get("position")
+    base = f"{_SHORT[trader]} · In {position['symbol']}{_money(position['unrealized_pnl'])}" if position else ""
+    out["text"] = pause.pill_words(_SHORT[trader], base, held, in_trade=bool(position))
 
 
 def _brain(out: dict[str, Any]) -> None:

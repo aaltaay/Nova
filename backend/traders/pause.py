@@ -32,10 +32,18 @@ def paused(trader: str, now: float | None = None) -> dict[str, Any] | None:
     desk = venue()
     if desk == TRADER_VENUE or not switches.is_on(trader, now):
         return None
-    name = switches.said(trader)
+    name, home = OWNER_NAMES.get(trader, trader), venue_name(TRADER_VENUE)
     return {"reason": TRADER_PAUSED, "venue": desk,
-            "text": f"The desk is on {venue_name(desk)}: {name} is paused. It opens no trade until the desk is back "
-                    f"on {venue_name(TRADER_VENUE)}; a trade it holds there keeps its stop and target."}
+            "text": f"{name} trades {home} only. It opens no trade while the desk is on {venue_name(desk)}. Its "
+                    f"{home} trade keeps its stop and target, and it carries on when you go back to {home}."}
+
+
+def pill_words(short: str, text: str, held: dict[str, Any], *, in_trade: bool) -> str:
+    """The pill's words while paused: where the trader trades and why it waits. ``text`` is its unpaused words."""
+    home, where = venue_name(TRADER_VENUE), venue_name(str(held["venue"]))
+    if in_trade:
+        return f"{text} on {home} · paused while you're on {where}"
+    return f"{short} · {home} only · paused while you're on {where}"
 
 
 def entries_waiting() -> list[dict[str, Any]]:

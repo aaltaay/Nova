@@ -122,6 +122,11 @@ def status(now: float | None = None) -> dict[str, Any]:
     beat = st.get("beat_at")
     text = pill_text(state, text_of(state, shown, pnl, watcher.line_why(), _buy_at(shown, breaks, working)),
                      holds=holds)
+    paused = _paused()
+    if paused:
+        from traders import pause
+
+        text = pause.pill_words(AGENT_NAME, text_of(SEAT_IN, shown, pnl, None), paused, in_trade=state == SEAT_IN)
     return {
         "schema_version": AGENT_SCHEMA_VERSION, "generated_at": t, "name": AGENT_NAME, "venue": AGENT_VENUE,
         "state": state, "text": text,
@@ -141,7 +146,7 @@ def status(now: float | None = None) -> dict[str, Any]:
         "note": st.get("note"),
         "events": list(reversed(st.get("events") or []))[:_EVENTS_SHOWN],
         "read_error": read_error,
-        "paused": _paused(),
+        "paused": paused,
     }
 
 

@@ -27,9 +27,16 @@ export interface BrainPillWords {
   lead: string;
   /** The muted words after it ("· Watching SSII"); null when the lead says it all. */
   rest: string | null;
-  /** The figure at the end: the open trade's P&L, or the day's once it is done. */
+  /** The figure after them: the open trade's P&L, or the day's once it is done. */
   pnl: BrainPnl | null;
+  /** Muted words after the figure, while paused: "on Paper · paused while you're on Live". */
+  tail?: string | null;
 }
+
+const VENUE_NAMES: Record<string, string> = { paper: 'Paper', sim: 'Sim', live: 'Live' };
+const venueName = (venue: string): string => VENUE_NAMES[venue] ?? venue;
+/** The one venue the brain opens trades on (`TRADER_VENUE`). */
+export const BRAIN_HOME = 'Paper';
 
 export const BRAIN_NAME = 'Brain';
 export const BRAIN_PANEL_LABEL = 'The brain';
@@ -79,10 +86,20 @@ export function brainPillWords(status: BrainSeatStatus): BrainPillWords {
       ? { tone: 'wait', lead: `${BRAIN_NAME} · Off`, rest: `· ${handed.symbol} is yours to close`, pnl: null }
       : { tone: 'off', lead: `${BRAIN_NAME} · Off`, rest: null, pnl: null };
   }
+  const position = status.position;
+  if (status.paused) {
+    // On, with the desk off Paper: it trades Paper only, so it waits (the operator, 2026-11-18: say both halves).
+    const waits = `paused while you're on ${venueName(status.paused.venue)}`;
+    if (!position) return { tone: 'wait', lead: BRAIN_NAME, rest: `· ${BRAIN_HOME} only · ${waits}`, pnl: null };
+    const pnl = position.unrealized_pnl;
+    return {
+      tone: 'wait', lead: BRAIN_NAME, rest: `· In ${position.symbol}`,
+      pnl: pnl === null ? null : { text: fmtMoney(pnl), tone: pnlTone(pnl) }, tail: `on ${BRAIN_HOME} · ${waits}`,
+    };
+  }
   if (status.connected === false) {
     return { tone: 'wait', lead: `${BRAIN_NAME} · On`, rest: `· ${BRAIN_NOT_RUNNING}`, pnl: null };
   }
-  const position = status.position;
   if (position) {
     const pnl = position.unrealized_pnl;
     return {
@@ -103,10 +120,9 @@ export function brainPillTitle(words: BrainPillWords): string {
 
 /** The whole pill as one line: "Brain · In XLAB +$42.00". */
 export function brainPillText(words: BrainPillWords): string {
-  return words.pnl ? `${brainPillTitle(words)} ${words.pnl.text}` : brainPillTitle(words);
+  const text = words.pnl ? `${brainPillTitle(words)} ${words.pnl.text}` : brainPillTitle(words);
+  return words.tail ? `${text} ${words.tail}` : text;
 }
-
-const VENUE_NAMES: Record<string, string> = { paper: 'Paper', sim: 'Sim', live: 'Live' };
 
 /** The panel's line under its title: "Paper · lane 3". */
 export function brainSubLine(venue: string | null): string {

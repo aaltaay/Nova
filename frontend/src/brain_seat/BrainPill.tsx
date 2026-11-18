@@ -24,6 +24,7 @@ function BrainPillText({ words }: { words: BrainPillWords }) {
       {words.lead}
       {words.rest ? <i> {words.rest}</i> : null}
       {words.pnl ? <> <span className={`brain-num is-${words.pnl.tone}`}>{words.pnl.text}</span></> : null}
+      {words.tail ? <i> {words.tail}</i> : null}
     </span>
   );
 }
@@ -53,7 +54,8 @@ export function BrainPill() {
   if (isSampleView() || !status) return null;
   const words = brainPillWords(status);
   const notRunning = status.on && status.connected === false;
-  const tip = error ? `The brain: ${error}` : notRunning ? BRAIN_NOT_RUNNING_TIP : undefined;
+  // Paused: the tip says the whole reason (it trades Paper only, the desk is elsewhere, its trade keeps its exits).
+  const tip = error ? `The brain: ${error}` : status.paused?.text || (notRunning ? BRAIN_NOT_RUNNING_TIP : undefined);
   return (
     <span className="brain-pill-wrap" ref={root}>
       <span className={`brain-pill brain-pill--${words.tone}`} data-testid="brain-pill" data-state={status.state}

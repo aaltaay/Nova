@@ -104,7 +104,10 @@ export function readClaudeSeat(raw: unknown): ClaudeSeatStatus | null {
   const today = obj(r.today);
   const limits = obj(r.limits);
   const note = obj(r.note);
+  const paused = obj(r.paused);
+  const pausedVenue = str(paused.venue)?.toLowerCase();
   return {
+    paused: pausedVenue ? { venue: pausedVenue, text: str(paused.text) ?? '' } : null,
     state, text: str(r.text) ?? 'Claude', on: r.on === true, since: num(r.since), beat_at: num(r.beat_at),
     lease_until: num(r.lease_until), lapsed: r.lapsed === true, switch: switchOf(r.switch),
     symbol: str(r.symbol)?.toUpperCase() ?? null, line: line(r.line),
