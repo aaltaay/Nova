@@ -348,7 +348,11 @@ export function useIbkrTape(symbol: string | null, uiActive = true, options: Tap
         if (waiting) return;
         const delay = backoffRef.current;
         backoffRef.current = Math.min(delay * 2, 30_000);
-        reconnectTimerRef.current = setTimeout(() => connect(), delay);
+        reconnectTimerRef.current = setTimeout(() => {
+          // Fired: nothing is pending any more, so a wake after this must not open a second socket.
+          reconnectTimerRef.current = null;
+          connect();
+        }, delay);
       };
     }
 

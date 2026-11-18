@@ -249,6 +249,20 @@ describe('a tape that watches its link (the phone)', () => {
     expect(sockets()).toHaveLength(2);               // asked for again now, not a second (or thirty) later
   });
 
+  it('a wake after the backoff already reconnected opens no second socket (review of #1334)', () => {
+    mount();
+    act(() => { sockets()[0].say({ type: 'subscribed', symbol: 'GMM' }); });
+    act(() => { sockets()[0].close(); });
+    act(() => { vi.advanceTimersByTime(1_100); });   // the backoff fired: the replacement is open
+    expect(sockets()).toHaveLength(2);
+    act(() => { sockets()[1].say({ type: 'subscribed', symbol: 'GMM' }); });
+    act(() => { setHidden(true); });
+    act(() => { setHidden(false); });                 // nothing is pending: the healthy socket stays the only one
+    act(() => { window.dispatchEvent(new Event('online')); });
+    expect(sockets()).toHaveLength(2);
+    expect(sockets()[1].closed).toBe(false);
+  });
+
   it('the desk tape is unchanged: no recent, no watch, no reconnect by itself', () => {
     mount({ traderTab: true });
     expect(sockets()[0].url).toMatch(/\?tab=1&front=1$/);
@@ -300,6 +314,19 @@ describe('a Level 2 that watches its link (the phone)', () => {
     expect(sockets()[1].url).toMatch(/front=1$/);
     act(() => { sockets()[1].say({ type: 'subscribed', symbol: 'GMM', instance: 'a' }); });
     expect(quietSince).toBeNull();
+  });
+
+  it('a wake after the backoff already reconnected opens no second socket (review of #1334)', () => {
+    act(() => { root.render(<Harness watchLink />); });
+    act(() => { sockets()[0].say({ type: 'subscribed', symbol: 'GMM', instance: 'a' }); });
+    act(() => { sockets()[0].close(); });
+    act(() => { vi.advanceTimersByTime(1_100); });   // the backoff fired: the replacement is open
+    expect(sockets()).toHaveLength(2);
+    act(() => { sockets()[1].say({ type: 'subscribed', symbol: 'GMM', instance: 'a' }); });
+    act(() => { setHidden(true); });
+    act(() => { setHidden(false); });                 // nothing is pending: the healthy socket stays the only one
+    expect(sockets()).toHaveLength(2);
+    expect(sockets()[1].closed).toBe(false);
   });
 
   it('leaving the screen lifts its lock', () => {

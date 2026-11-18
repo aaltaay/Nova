@@ -321,7 +321,11 @@ export function useIbkrDepth(symbol: string | null, uiActive = true, options: De
         const ceiling = refused ? IBKR_DEPTH_REFUSED_RETRY_MAX_MS : IBKR_DEPTH_RETRY_MAX_MS;
         const delay = Math.min(backoffRef.current, ceiling);
         backoffRef.current = Math.min(delay * 2, ceiling);
-        reconnectTimerRef.current = setTimeout(() => connect(), delay);
+        reconnectTimerRef.current = setTimeout(() => {
+          // Fired: nothing is pending any more, so a wake after this must not open a second socket.
+          reconnectTimerRef.current = null;
+          connect();
+        }, delay);
       };
     }
 
