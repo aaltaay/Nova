@@ -1075,7 +1075,11 @@ subscribe to a quote, and has no order ticket. `nova_historical_chart`, `nova_hi
   the desk's charts paint. Only bars that start on the asked Eastern day are kept, and the same causal cut applies.
   The answer's top-level `source` is `desk-ibkr` (`front-door` otherwise; the page header says which); frame sources
   are `ibkr-history` (10s, 1m, 5m) and `ibkr-daily` (1d). The desk keeps 10-second bars for its current session only,
-  so an earlier day's 10s frame is empty. The reader waits up to 12 s for a fill the desk has just queued. Nothing is
+  so an earlier day's 10s frame is empty. A page has one 12 s wait, shared by its four reads and shorter than the
+  screenshot's 25 s: the 1-minute read asks for every timeframe at once, so the desk fills them side by side. While
+  the desk's `coverage.history_pending` is true its rows are not IBKR's history yet (nothing, an earlier session, or
+  the few minutes its live tape built) and are never drawn: the reader asks again, and a series still pending when
+  the wait ends is an empty frame, or `REVIEW_NO_DATA` for the 1-minute series. Nothing is
   written and nothing is inferred: when the desk has no 1-minute bar of that day, does not answer, or answers with
   anything but `source: "ibkr"` (a Sim replay), the route is HTTP 404
   `{ok: false, code: "REVIEW_NO_DATA", error}` with both reasons in `error`. A reader passed in by a test gets no

@@ -56,8 +56,18 @@ def _desk(series=None, *, source="ibkr", coverage=None):
 
 
 @pytest.fixture(autouse=True)
-def _no_sleep(monkeypatch):
-    monkeypatch.setattr(desk, "sleep", lambda _sec: None)
+def waited(monkeypatch):
+    """A clock that only a ``sleep`` moves: no test waits, and each can read how long the reader waited."""
+    now = {"t": 1000.0, "slept": 0.0}
+
+    def sleep(seconds: float) -> None:
+        now["t"] += seconds
+        now["slept"] += seconds
+
+    monkeypatch.setattr(desk, "sleep", sleep)
+    monkeypatch.setattr(desk, "clock", lambda: now["t"])
+    monkeypatch.setattr(desk, "_budgets", {})
+    return now
 
 
 def _no_file(*_args):
@@ -104,15 +114,80 @@ def test_a_sim_replay_on_the_desk_is_refused_not_drawn(monkeypatch):
         desk.desk_bars("HIHO", DAY, "1m")
 
 
-def test_a_queued_fill_is_waited_for(monkeypatch):
-    answers = [
-        {"bars": [], "source": "ibkr", "coverage": {"filling": True, "history_pending": True}},
-        {"bars": [_bar("2026-11-17T20:59:00Z", 1.10)], "source": "ibkr", "coverage": {"filling": True}},
-        {"bars": SERIES["1Min"], "source": "ibkr", "coverage": {"filling": False}},
+def _by_timeframe(answers: dict[str, list[dict]]):
+    """Each timeframe answers from its own list, in order; the last answer repeats."""
+    def fetch(url: str) -> dict:
+        queue = answers[url.split("timeframe=")[1].split("&")[0]]
+        return queue.pop(0) if len(queue) > 1 else queue[0]
+
+    return fetch
+
+
+PENDING = {"filling": True, "history_pending": True}
+SETTLED = {"filling": False, "history_pending": False}
+
+
+def _answer(bars, coverage):
+    return {"bars": bars, "source": "ibkr", "coverage": coverage}
+
+
+def test_a_queued_fill_is_waited_for(monkeypatch, waited):
+    minutes = [
+        _answer([], PENDING),
+        _answer([_bar("2026-11-17T20:59:00Z", 1.10)], {"filling": True}),      # an earlier day, still filling
+        _answer(SERIES["1Min"], SETTLED),
     ]
-    monkeypatch.setattr(desk, "fetch_json", lambda _url: answers.pop(0))
+    other = [_answer([], SETTLED)]
+    monkeypatch.setattr(desk, "fetch_json", _by_timeframe(
+        {"1Min": minutes, "5Min": other, "10Sec": other, "1Day": other}))
     assert len(desk.desk_bars("HIHO", DAY, "1m")) == 3
-    assert answers == []
+    assert waited["slept"] == 2 * desk.FILL_POLL_SEC
+
+
+def test_live_tape_bars_are_not_taken_for_history_while_it_is_pending(monkeypatch, waited):
+    """Review of PR 1341: a stock with live-built minutes of today and its history fill still queued."""
+    stub = [_bar("2026-11-18T14:23:00Z", 1.90), _bar("2026-11-18T14:24:00Z", 1.88)]
+    minutes = [_answer(stub, PENDING), _answer(stub, PENDING), _answer(SERIES["1Min"], SETTLED)]
+    other = [_answer([], SETTLED)]
+    monkeypatch.setattr(desk, "fetch_json", _by_timeframe(
+        {"1Min": minutes, "5Min": other, "10Sec": other, "1Day": other}))
+    rows = desk.desk_bars("HIHO", DAY, "1m")
+    assert [row["time_et"].strftime("%H:%M") for row in rows] == ["09:17", "09:18", "09:30"]    # the history, not the stub
+
+
+def test_history_that_never_arrives_is_refused_not_drawn(monkeypatch, waited):
+    stub = [_bar("2026-11-18T14:24:00Z", 1.88)]
+    always = [_answer(stub, PENDING)]
+    monkeypatch.setattr(desk, "fetch_json", _by_timeframe(
+        {"1Min": always, "5Min": always, "10Sec": always, "1Day": always}))
+    with pytest.raises(desk.DeskUnavailable, match="has not reached the desk yet"):
+        desk.desk_bars("HIHO", DAY, "1m")
+    # The other panes come back empty rather than as a stub, and add no wait of their own.
+    assert desk.desk_bars("HIHO", DAY, "5m") == []
+    assert desk.desk_daily("HIHO", "2026-05-19", DAY) == []
+    assert waited["slept"] == desk.FILL_WAIT_SEC
+
+
+def test_four_cold_reads_share_one_wait_and_fill_side_by_side(monkeypatch, waited):
+    """Review of PR 1341: a wait per read (4 x 12 s) outlasted the screenshot's 25 s."""
+    asked: list[str] = []
+    polls = {"1Min": 0, "5Min": 0, "10Sec": 0, "1Day": 0}
+
+    def fetch(url: str) -> dict:
+        timeframe = url.split("timeframe=")[1].split("&")[0]
+        asked.append(timeframe)
+        polls[timeframe] += 1
+        # Every series lands 9 s after the page's first ask, whichever read is waiting then.
+        landed = waited["slept"] >= 9.0
+        return _answer(SERIES[timeframe] if landed else [], SETTLED if landed else PENDING)
+
+    monkeypatch.setattr(desk, "fetch_json", fetch)
+    body = review_load.load_review("hiho", DAY, None, "09:25", bars_reader=_no_file, daily_reader=_no_file,
+                                   fallback=desk.READERS)
+    # The first read asked for all four before waiting, so the desk queued their fills together.
+    assert sorted(asked[:4]) == sorted(polls)
+    assert waited["slept"] <= desk.FILL_WAIT_SEC < 25
+    assert all(frame["bars"] for frame in body["timeframes"].values())
 
 
 def test_a_day_the_desk_does_not_hold_names_both_reasons(monkeypatch):
