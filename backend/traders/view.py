@@ -128,6 +128,8 @@ def _paused(trader: str, out: dict[str, Any], now: float) -> None:
     if held is None:
         return
     out["paused"] = held
+    if out["done_for_today"] or out["state"] == TRADER_STATE_DONE:
+        return                                         # done for today is the reason it cannot trade: keep saying it
     position = out.get("position")
     base = f"{_SHORT[trader]} · In {position['symbol']}{_money(position['unrealized_pnl'])}" if position else ""
     out["text"] = pause.pill_words(_SHORT[trader], base, held, in_trade=bool(position))

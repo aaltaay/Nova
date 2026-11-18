@@ -123,7 +123,7 @@ def status(now: float | None = None) -> dict[str, Any]:
     text = pill_text(state, text_of(state, shown, pnl, watcher.line_why(), _buy_at(shown, breaks, working)),
                      holds=holds)
     paused = _paused()
-    if paused:
+    if paused and state != SEAT_DONE:                  # a done day stays said: going back to Paper would not resume it
         from traders import pause
 
         text = pause.pill_words(AGENT_NAME, text_of(SEAT_IN, shown, pnl, None), paused, in_trade=state == SEAT_IN)
