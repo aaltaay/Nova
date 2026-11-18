@@ -16,6 +16,7 @@ from ibkr.venue_book.line import (
     close_viewer,
     current,
     follow,
+    held,
     is_up,
     open_viewer,
     reset_for_tests,
@@ -23,5 +24,5 @@ from ibkr.venue_book.line import (
     symbol,
 )
 
-__all__ = ["VENUE", "close", "close_viewer", "current", "follow", "is_up", "open_viewer", "reset_for_tests", "status",
-           "symbol"]
+__all__ = ["VENUE", "close", "close_viewer", "current", "follow", "held", "is_up", "open_viewer", "reset_for_tests",
+           "status", "symbol"]

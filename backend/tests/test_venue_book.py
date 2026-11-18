@@ -1,13 +1,20 @@
 """The brain's Nasdaq book (ADR 072 Amendment 5): a Level 2 request on the exchange itself, beside the all-exchange
-line of the same stock, kept as its own book; it follows the brain's lane only while a Level 2 line is free."""
+line of the same stock, kept as its own book; it follows the brain's lane only while a Level 2 line is free, and its
+request is never cancelled before IBKR answered it."""
 from __future__ import annotations
 
 import asyncio
 import json
+import time
 
 import pytest
 
-from constants_ibkr import IBKR_ERROR_DEPTH_MAX_LINES, IBKR_ERROR_DEPTH_RESET
+from constants_ibkr import (
+    IBKR_ERROR_CONNECTIVITY_RESTORED_DATA_KEPT,
+    IBKR_ERROR_DEPTH_MAX_LINES,
+    IBKR_ERROR_DEPTH_RESET,
+    IBKR_NOTICE_DEPTH_EXCHANGES,
+)
 from constants_venue_book import IBKR_VENUE_BOOK_ROWS
 from ibkr import venue_book
 from ibkr.venue_book import line
@@ -18,19 +25,16 @@ from market_view.viewer_queues import BookVersion
 CON_ID = 4242
 INSERT, UPDATE, DELETE = 0, 1, 2
 BID, ASK = 1, 0
+DATA_LOST = 1101
 
 
-@pytest.fixture
-def ib(monkeypatch):
+def _new_ib(monkeypatch, first_req: int):
     """A real ib_async ``IB`` (its own subscription registry and wrapper), with the socket calls recorded."""
     from ib_async import IB
 
-    from ibkr import client
-    from sim import mode
-
     ib = IB()
     ib.sent = []
-    ids = iter(range(900, 2000))
+    ids = iter(range(first_req, first_req + 1000))
     monkeypatch.setattr(ib.client, "getReqId", lambda: next(ids))
     monkeypatch.setattr(ib.client, "reqMktDepth", lambda req, contract, rows, smart, opts=None: ib.sent.append(("ask", req, contract.exchange, rows, smart)))
     monkeypatch.setattr(ib.client, "cancelMktDepth", lambda req, smart: ib.sent.append(("cancel", req, smart)))
@@ -40,8 +44,21 @@ def ib(monkeypatch):
         return [contract]
 
     monkeypatch.setattr(ib, "qualifyContractsAsync", qualify)
-    monkeypatch.setattr(client, "is_ready", lambda: True)
-    monkeypatch.setattr(client, "get_ib", lambda: ib)
+    return ib
+
+
+@pytest.fixture
+def ib(monkeypatch):
+    from ibkr import client, session_errors
+    from sim import mode
+
+    ib = _new_ib(monkeypatch, 900)
+    desk = {"ib": ib, "ready": True, "generation": 7, "connectivity": None}
+    ib.desk = desk
+    monkeypatch.setattr(client, "is_ready", lambda: desk["ready"])
+    monkeypatch.setattr(client, "get_ib", lambda: desk["ib"] if desk["ready"] else None)
+    monkeypatch.setattr(client, "current_generation", lambda: desk["generation"])
+    monkeypatch.setattr(session_errors, "last_connectivity_code", lambda: desk["connectivity"])
     monkeypatch.setattr(mode, "is_replay_desk", lambda: False)
     venue_book.reset_for_tests()
     yield ib
@@ -67,8 +84,22 @@ class _Read:
         self.ib.wrapper.tcpDataProcessed()
 
 
-def _venue_req(ib) -> int:
-    return next(s[1] for s in ib.sent if s[0] == "ask" and s[2] == "NASDAQ")
+def _asks(ib) -> list[tuple]:
+    return [s for s in ib.sent if s[0] == "ask" and s[2] == "NASDAQ"]
+
+
+def _cancels(ib) -> list[tuple]:
+    return [s for s in ib.sent if s[0] == "cancel"]
+
+
+def _open(ib, sym: str = "CUE", *, granted: bool = True) -> int:
+    """Ask for ``sym``'s book; ``granted``: IBKR's first row has arrived. The request id."""
+    asyncio.run(venue_book.follow(sym))
+    req = _asks(ib)[-1][1]
+    if granted:
+        with _Read(ib):
+            _rows(ib, req, [(4.03, 255.0, "NSDQ")], BID)
+    return req
 
 
 def test_nasdaqs_book_opens_beside_the_all_exchange_line_of_the_same_stock(ib):
@@ -95,11 +126,13 @@ def test_nasdaqs_book_opens_beside_the_all_exchange_line_of_the_same_stock(ib):
     with _Read(ib):                                                                # a size rewritten to the same size: no new frame
         ib.wrapper.updateMktDepthL2(901, 0, "", UPDATE, BID, 4.03, 255.0, False)
     assert q.empty() and venue_book.status()["seq"] == 1 and venue_book.status()["rows"] is True
+    asyncio.run(venue_book.follow(None))                                           # the Nasdaq request's cancel is its own
+    assert _cancels(ib) == [("cancel", 901, False)]
+    assert ib.wrapper.subscriptions.find_market_data(CON_ID, "mktDepth") is not None, "the lane's own line is untouched"
 
 
 def test_rows_follow_ibkrs_insert_update_delete_and_stop_at_twenty(ib):
-    asyncio.run(venue_book.follow("CUE"))
-    req = _venue_req(ib)
+    req = _open(ib, granted=False)
     with _Read(ib):
         _rows(ib, req, [(round(5.00 - i / 100, 2), 100.0 + i, "NSDQ") for i in range(IBKR_VENUE_BOOK_ROWS)], BID)
     with _Read(ib):
@@ -112,12 +145,9 @@ def test_rows_follow_ibkrs_insert_update_delete_and_stop_at_twenty(ib):
 
 
 def test_ibkrs_reset_empties_the_book_and_its_refusal_ends_the_line_in_words(ib):
-    asyncio.run(venue_book.follow("CUE", now=1000.0))
-    req = _venue_req(ib)
-    with _Read(ib):
-        _rows(ib, req, [(4.03, 255.0, "NSDQ")], BID)
+    req = _open(ib)
     ib.errorEvent.emit(req + 50, IBKR_ERROR_DEPTH_MAX_LINES, "another request's refusal", None)
-    ib.errorEvent.emit(req, 2152, "Exchanges - Depth: NASDAQ", None)                 # a notice, not a refusal
+    ib.errorEvent.emit(req, 2104, "Market data farm connection is OK", None)         # a notice, not a refusal
     assert venue_book.is_up("CUE")
     with _Read(ib):                                                                  # one read: an old row, the reset, the new book
         ib.wrapper.updateMktDepthL2(req, 1, "NSDQ", INSERT, BID, 4.02, 111.0, False)
@@ -129,46 +159,154 @@ def test_ibkrs_reset_empties_the_book_and_its_refusal_ends_the_line_in_words(ib)
     st = venue_book.status()
     assert st["up"] is False and st["symbol"] == "CUE" and "All 3 Level 2 lines are in use" in st["error"]
     assert q.get_nowait()["type"] == "closed" and venue_book.current("CUE") is None
-    assert not any(s[0] == "cancel" for s in ib.sent), "IBKR holds nothing for a refused request"
-    asked = len(ib.sent)
-    asyncio.run(venue_book.follow("CUE", now=__import__("time").time() + 1))        # not asked again at once
-    assert len(ib.sent) == asked
-    asyncio.run(venue_book.follow("CUE", now=__import__("time").time() + 60))
-    assert len(ib.sent) == asked + 1 and venue_book.is_up("CUE")
+    assert _cancels(ib) == [] and venue_book.held() == [], "IBKR holds nothing for a refused request"
+    asyncio.run(venue_book.follow("CUE", now=time.time() + 1))                       # not asked again at once
+    assert len(_asks(ib)) == 1
+    asyncio.run(venue_book.follow("CUE", now=time.time() + 60))
+    assert len(_asks(ib)) == 2 and venue_book.is_up("CUE")
 
 
-def test_the_book_moves_with_the_brain_gives_its_line_back_and_outlives_no_session(ib, monkeypatch):
-    asyncio.run(venue_book.follow("CUE"))
-    first = _venue_req(ib)
-    asyncio.run(venue_book.follow("MPU"))                                            # the brain's lane moved
-    assert ib.sent[-2:] == [("cancel", first, False), ("ask", first + 1, "NASDAQ", IBKR_VENUE_BOOK_ROWS, False)]
+def test_a_request_ibkr_has_not_answered_is_never_cancelled(ib):
+    """ibkr/depth/release.py's rule: a Level 2 request cancelled before its grant can stay held inside IB Gateway."""
+    first = _open(ib, "CUE", granted=False)
+    st = asyncio.run(venue_book.follow("MPU"))                                       # the brain's lane moved before IBKR answered
+    assert _cancels(ib) == [] and venue_book.held() == ["CUE"]
+    assert len(_asks(ib)) == 1 and st["up"] is False and "Waiting for IBKR to answer" in st["error"]
+    with _Read(ib):                                                                  # IBKR grants the old request: now it is cancelled
+        _rows(ib, first, [(4.03, 255.0, "NSDQ")], BID)
+    assert _cancels(ib) == [("cancel", first, False)] and venue_book.held() == []
+    assert venue_book.current("MPU") is None, "a held request's rows are nobody's book"
+    asyncio.run(venue_book.follow("MPU", now=time.time() + 60))
+    assert [a[1] for a in _asks(ib)] == [first, first + 1] and venue_book.is_up("MPU")
+
+
+def test_an_unanswered_request_is_taken_back_and_one_ibkr_refuses_is_forgotten(ib):
+    first = _open(ib, "CUE", granted=False)
+    asyncio.run(venue_book.follow(None))
+    assert venue_book.held() == ["CUE"] and _cancels(ib) == []
+    asyncio.run(venue_book.follow("CUE"))                                            # wanted again: the request still out carries on
+    assert len(_asks(ib)) == 1 and venue_book.held() == [] and venue_book.is_up("CUE")
+    with _Read(ib):
+        _rows(ib, first, [(4.03, 255.0, "NSDQ")], BID)
+    assert venue_book.current("CUE")["bids"][0]["price"] == 4.03 and _cancels(ib) == []
+    asyncio.run(venue_book.follow(None))                                             # granted now: the cancel goes out at once
+    assert _cancels(ib) == [("cancel", first, False)]
+    second = _open(ib, "MPU", granted=False)
+    asyncio.run(venue_book.follow(None))
+    ib.errorEvent.emit(second, IBKR_ERROR_DEPTH_MAX_LINES, "Max number (3) of market depth requests has been reached", None)
+    assert venue_book.held() == [] and len(_cancels(ib)) == 1, "a refused held request is forgotten, never cancelled"
+    third = _open(ib, "HIHO", granted=False)
+    ib.errorEvent.emit(third, IBKR_NOTICE_DEPTH_EXCHANGES, "Exchanges - Depth: NASDAQ", None)   # IBKR's grant notice, before any row
+    asyncio.run(venue_book.follow(None))
+    assert _cancels(ib)[-1] == ("cancel", third, False) and venue_book.held() == []
+
+
+def test_a_cancel_that_cannot_be_sent_leaves_the_request_held_and_is_sent_again(ib, monkeypatch):
+    req = _open(ib)
+    calls = {"n": 0}
+
+    def flaky(r, smart):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise ConnectionError("socket busy")
+        ib.sent.append(("cancel", r, smart))
+
+    monkeypatch.setattr(ib.client, "cancelMktDepth", flaky)
+    asyncio.run(venue_book.follow(None))
+    assert venue_book.held() == ["CUE"] and _cancels(ib) == []
+    assert ib.wrapper.subscriptions.find_market_data(CON_ID, line.KIND) is not None, "ib_async still holds the request"
+    asyncio.run(venue_book.follow(None))                                             # the next look sends it
+    assert _cancels(ib) == [("cancel", req, False)] and venue_book.held() == []
+
+
+def test_nothing_is_cancelled_while_ibkr_is_not_ready_even_when_the_answer_arrives_then(ib):
+    """A degraded session keeps its generation until the next READY: the readiness itself is asked."""
+    req = _open(ib, granted=False)
+    asyncio.run(venue_book.follow(None))
+    assert venue_book.held() == ["CUE"]
+    ib.desk["ready"] = False                                                         # degraded: same socket, same generation
+    with _Read(ib):
+        _rows(ib, req, [(4.03, 255.0, "NSDQ")], BID)                                 # the grant arrives during the outage
+    assert _cancels(ib) == [] and venue_book.held() == ["CUE"], "the request stays tracked"
+    assert ib.wrapper.subscriptions.find_market_data(CON_ID, line.KIND) is not None
+    asyncio.run(venue_book.follow(None))
+    assert _cancels(ib) == [] and venue_book.held() == ["CUE"]
+    ib.desk["ready"] = True                                                          # READY again: decided now
+    asyncio.run(venue_book.follow(None))
+    assert _cancels(ib) == [("cancel", req, False)] and venue_book.held() == []
+    second = _open(ib, "MPU")                                                        # and a granted line let go while not ready
+    ib.desk["ready"] = False
+    asyncio.run(venue_book.follow(None))
+    assert len(_cancels(ib)) == 1 and venue_book.held() == ["MPU"]
+    ib.desk["ready"] = True
+    asyncio.run(venue_book.follow(None))
+    assert _cancels(ib)[-1] == ("cancel", second, False) and venue_book.held() == []
+
+
+def test_the_book_moves_with_the_brain_and_gives_its_line_back(ib):
+    first = _open(ib, "CUE")
+    second = _open(ib, "MPU")                                                        # the brain's lane moved
+    assert ib.sent[-2:] == [("cancel", first, False), ("ask", second, "NASDAQ", IBKR_VENUE_BOOK_ROWS, False)]
     assert venue_book.is_up("MPU") and not venue_book.is_up("CUE")
     st = asyncio.run(venue_book.follow("MPU", room=False))                           # a lane needs the line
-    assert st["up"] is False and "waits for one" in st["error"] and ib.sent[-1] == ("cancel", first + 1, False)
+    assert st["up"] is False and "waits for one" in st["error"] and ib.sent[-1] == ("cancel", second, False)
     asyncio.run(venue_book.follow("MPU"))
     assert venue_book.is_up("MPU")
-    monkeypatch.setattr(line.line_session, "is_stale", lambda stamp: True)           # the IBKR session ended
-    assert venue_book.symbol() is None and venue_book.current("MPU") is None
-    sent = len(ib.sent)
-    monkeypatch.setattr(line.line_session, "is_stale", lambda stamp: False)
-    line._line.generation = -1
-    monkeypatch.setattr(line.line_session, "is_stale", lambda stamp: stamp == -1)
-    asyncio.run(venue_book.follow("MPU"))
-    assert [s[0] for s in ib.sent[sent:]] == ["ask"], "a dead session's request is not cancelled; the book is asked for again"
+    _rows(ib, _asks(ib)[-1][1], [(2.5, 100.0, "NSDQ")], BID)
     asyncio.run(venue_book.follow(None))
     assert venue_book.status() == {"venue": "NASDAQ", "symbol": None, "up": False, "rows": False, "seq": 0, "at": None, "error": None}
 
 
+def test_a_line_ibkr_kept_through_a_restore_lives_on_and_is_not_asked_twice(ib):
+    """1102: the same socket, its data kept. The generation moves, the request does not."""
+    req = _open(ib)
+    ib.desk["generation"] += 1
+    ib.desk["connectivity"] = IBKR_ERROR_CONNECTIVITY_RESTORED_DATA_KEPT
+    assert venue_book.symbol() is None                                               # not counted until it is settled
+    asyncio.run(venue_book.follow("CUE"))
+    assert venue_book.is_up("CUE") and len(_asks(ib)) == 1 and _cancels(ib) == []
+    with _Read(ib):
+        ib.wrapper.updateMktDepthL2(req, 0, "NSDQ", UPDATE, BID, 4.03, 999.0, False)
+    assert venue_book.current("CUE")["bids"][0]["size"] == 999.0
+
+
+def test_a_line_ibkr_lost_is_cancelled_if_answered_and_a_dropped_sockets_is_forgotten(ib, monkeypatch):
+    first = _open(ib)
+    ib.desk["generation"] += 1
+    ib.desk["connectivity"] = DATA_LOST                                              # the same socket, IBKR forgot the line
+    q = venue_book.open_viewer("CUE")
+    asyncio.run(venue_book.follow("CUE"))
+    assert ib.sent[-2:] == [("cancel", first, False), ("ask", first + 1, "NASDAQ", IBKR_VENUE_BOOK_ROWS, False)]
+    assert q.get_nowait()["reason"] == "its IBKR session ended" and venue_book.is_up("CUE")
+    with _Read(ib):
+        _rows(ib, first + 1, [(4.0, 10.0, "NSDQ")], BID)
+    ib.desk["ready"] = False                                                         # IBKR's connection lost: nothing is decided or sent
+    ib.desk["generation"] += 1
+    sent = len(ib.sent)
+    st = asyncio.run(venue_book.follow("CUE"))
+    assert len(ib.sent) == sent and st["up"] is False
+    new = _new_ib(monkeypatch, 100)                                                  # a new socket: the old request died with it
+    ib.desk.update(ib=new, ready=True)
+    asyncio.run(venue_book.follow("CUE", now=time.time() + 60))
+    assert len(ib.sent) == sent, "nothing is cancelled on a socket that dropped"
+    assert _asks(new) == [("ask", 100, "NASDAQ", IBKR_VENUE_BOOK_ROWS, False)] and venue_book.is_up("CUE")
+
+
 def test_no_book_on_a_replaying_desk_or_before_ibkr_is_ready(ib, monkeypatch):
-    from ibkr import client
     from sim import mode
 
-    monkeypatch.setattr(mode, "is_replay_desk", lambda: True)
-    assert "replaying" in asyncio.run(venue_book.follow("CUE", now=1.0))["error"]
+    req = _open(ib)
+    q = venue_book.open_viewer("CUE")
+    monkeypatch.setattr(mode, "is_replay_desk", lambda: True)                        # the desk goes to a recorded session
+    st = asyncio.run(venue_book.follow("CUE"))
+    assert st["up"] is False and "replaying" in st["error"] and _cancels(ib) == [("cancel", req, False)]
+    assert q.get_nowait()["type"] == "closed" and venue_book.current("CUE") is None
+    asyncio.run(venue_book.follow("CUE", now=time.time() + 60))
+    assert len(_asks(ib)) == 1, "no live book is asked for while replaying"
     monkeypatch.setattr(mode, "is_replay_desk", lambda: False)
-    monkeypatch.setattr(client, "is_ready", lambda: False)
-    assert asyncio.run(venue_book.follow("CUE", now=100.0))["error"] == "IBKR is not connected."
-    assert ib.sent == []
+    ib.desk["ready"] = False
+    assert asyncio.run(venue_book.follow("CUE", now=time.time() + 120))["error"] == "IBKR is not connected."
+    assert len(_asks(ib)) == 1
 
 
 class _Lines:
@@ -213,7 +351,7 @@ def desk(monkeypatch):
         log.append(("nasdaq", "follow", sym, room))
         return {}
 
-    def close(reason="", **_kw):
+    def close(reason=""):
         log.append(("nasdaq", "close", state["on"]))
         state["on"] = None
 
@@ -269,10 +407,8 @@ def test_the_socket_joins_says_why_it_waits_and_never_opens_a_line(ib):
     from routes.trading import ws_router
 
     assert venue_book_ws.waiting_words("CUE") == "The brain's lane is not on CUE."
-    asyncio.run(venue_book.follow("CUE"))
-    assert "Waiting for IBKR" not in (venue_book_ws.waiting_words("CUE") or "")
-    with _Read(ib):
-        _rows(ib, _venue_req(ib), [(4.03, 255.0, "NSDQ")], BID)
+    _open(ib)
+    assert venue_book_ws.waiting_words("CUE") is None
     app = FastAPI()
     app.include_router(ws_router)
     sent = len(ib.sent)
