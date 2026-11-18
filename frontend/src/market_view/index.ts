@@ -6,6 +6,7 @@ export {
   noteBeat,
   noteBookFrame,
   noteBookShown,
+  noteLinkQuiet,
   noteQuote,
   noteRefused,
   noteSubscribed,

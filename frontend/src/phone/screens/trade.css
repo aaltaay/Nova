@@ -205,7 +205,43 @@
   line-height: 1.3;
 }
 
-.ph-tape { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; min-height: 0; }
+.ph-tape { position: relative; flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; min-height: 0; }
+/* The tape's own state, always over its rows: a word, and beside LIVE the age of the newest print. */
+.ph-tape__status {
+  height: 16px;
+  flex-shrink: 0;
+  padding: 0 8px 0 6px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  font: 700 9px var(--ph-ui);
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+  color: var(--ph-faint);
+}
+.ph-tape__status b { display: flex; align-items: center; gap: 4px; font-weight: 700; }
+.ph-tape__status i { width: 6px; height: 6px; border-radius: 3px; background: currentColor; }
+.ph-tape__status span { font-weight: 600; letter-spacing: 0; color: var(--ph-muted); font-variant-numeric: tabular-nums; }
+.ph-tape__status[data-tone='good'] b { color: var(--ph-good); }
+.ph-tape__status[data-tone='warn'] b { color: var(--ph-warn); }
+.ph-tape__status[data-tone='bad'] { background: var(--ph-bad-bg); }
+.ph-tape__status[data-tone='bad'] b { color: var(--ph-bad-soft); }
+/* Not live: the rows are no longer the market. */
+.ph-tape[data-live='false'] .ph-tape__row { opacity: 0.4; }
+.ph-tape__note {
+  position: absolute;
+  left: 4px;
+  right: 4px;
+  bottom: 4px;
+  padding: 4px 6px;
+  border-radius: 8px;
+  background: rgba(10, 13, 18, 0.92);
+  color: var(--ph-warn);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.3;
+}
 /* Time and size are five characters of the tape's type at most ("50:54", "2,500", "12.0K"); the price takes the rest. */
 .ph-tape__cols, .ph-tape__row { padding: 0 8px 0 6px; display: grid; grid-template-columns: 5ch minmax(0, 1fr) 5ch; column-gap: 4px; }
 .ph-tape__cols { font-family: var(--ph-mono); font-size: 11px; letter-spacing: 0; }

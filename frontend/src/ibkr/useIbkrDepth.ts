@@ -8,7 +8,9 @@ import { documentVisible, LaneWait, type LaneWaitWords } from './laneWait';
 import { readLuldFrame, type LuldView } from './luld';
 import type { DepthBook } from './types';
 import { countSocketMessage, frameBytes } from '../perf/perfCounters';
-import { firstBookWords, forgetBook, noteBeat, noteBookFrame, noteRefused, noteSubscribed } from '../market_view';
+import { firstBookWords, forgetBook, noteBeat, noteBookFrame, noteLinkQuiet, noteRefused, noteSubscribed } from '../market_view';
+import { LINK_PANE_DEPTH } from '../constantGroups/market_view';
+import { SocketWatch } from './socketWatch';
 import { noteHeatBeat, noteHeatBook, noteHeatLine, noteHeatWatch } from '../heat_map';
 
 interface DepthState {
@@ -24,6 +26,11 @@ interface DepthState {
   luld: LuldView | null;
   /** No first book past the backend's wait: its words for what IBKR has done (a beat's `first_book`, #913). */
   firstBookWait: string | null;
+  /**
+   * This socket has said nothing since this moment (desk clock, ms) and is being asked for again; null while it
+   * speaks. Only a Level 2 that watches its link reports it (`watchLink`, the phone); absent otherwise.
+   */
+  quietSince?: number | null;
 }
 
 export interface DepthOptions {
@@ -33,6 +40,11 @@ export interface DepthOptions {
    * stock (ADR 071).
    */
   traderTab?: boolean;
+  /**
+   * Watch the socket itself (`socketWatch.ts`): one that goes quiet is said (`quietSince`), holds new buys on the
+   * stock, and is dropped and asked for again at once. For a page that is not on the PC (the phone).
+   */
+  watchLink?: boolean;
 }
 
 const EMPTY: DepthState = {
@@ -66,6 +78,7 @@ const EMPTY: DepthState = {
  */
 export function useIbkrDepth(symbol: string | null, uiActive = true, options: DepthOptions = {}): DepthState {
   const traderTab = options.traderTab === true;
+  const watchLink = options.watchLink === true;
   const [state, setState] = useState<DepthState>(EMPTY);
   const wsRef = useRef<WebSocket | null>(null);
   const backoffRef = useRef(1000);
@@ -92,6 +105,10 @@ export function useIbkrDepth(symbol: string | null, uiActive = true, options: De
   const firstBookWaitRef = useRef<string | null>(null);
   // This symbol's wait for a lane; set by the socket effect.
   const lineRef = useRef<LaneWait | null>(null);
+  // Since when this socket has said nothing (watchLink); null while it speaks.
+  const quietSinceRef = useRef<number | null>(null);
+  const watchLinkRef = useRef(watchLink);
+  watchLinkRef.current = watchLink;
 
   useEffect(() => {
     uiActiveRef.current = uiActive;
@@ -109,6 +126,7 @@ export function useIbkrDepth(symbol: string | null, uiActive = true, options: De
       laneWait: lineRef.current?.waiting ?? null,
       luld: luldRef.current,
       firstBookWait: firstBookWaitRef.current,
+      ...(watchLinkRef.current ? { quietSince: quietSinceRef.current } : {}),
     });
   };
 
@@ -129,6 +147,7 @@ export function useIbkrDepth(symbol: string | null, uiActive = true, options: De
     luldRef.current = null;
     firstBookWaitRef.current = null;
     lineRef.current = null;
+    quietSinceRef.current = null;
     setState(EMPTY);
 
     if (!symKey) {
@@ -156,11 +175,46 @@ export function useIbkrDepth(symbol: string | null, uiActive = true, options: De
     });
     lineRef.current = line;
 
+    // The `front` the socket now open was asked with: a socket replaced for being quiet asks with the same one,
+    // so a reconnect never moves your lane by itself (ADR 071).
+    let frontNow = false;
+    const speaks = () => {
+      if (quietSinceRef.current == null) return;
+      quietSinceRef.current = null;
+      noteLinkQuiet(symKey, LINK_PANE_DEPTH, null);
+      if (uiActiveRef.current) commitUi();
+    };
+    const watch = watchLink
+      ? new SocketWatch({
+          // Nothing from the PC on this socket: say so, hold new buys on the stock, and ask again now.
+          quiet: (since) => {
+            quietSinceRef.current = quietSinceRef.current ?? since;
+            connectedRef.current = false;
+            noteLinkQuiet(symKey, LINK_PANE_DEPTH, quietSinceRef.current);
+            if (uiActiveRef.current) commitUi();
+            const old = wsRef.current;
+            wsRef.current = null;      // its close is no longer this hook's
+            old?.close();
+            connect(frontNow);
+          },
+          // Back in front, or back online: a reconnect waiting on its backoff is made now.
+          woke: () => {
+            if (reconnectTimerRef.current == null) return;
+            clearTimeout(reconnectTimerRef.current);
+            reconnectTimerRef.current = null;
+            backoffRef.current = 1000;
+            connect();
+          },
+        })
+      : null;
+
     function connect(front = inFront()) {
       if (!mountedRef.current) return;
+      frontNow = front;
       const params = `?${traderTab ? 'tab=1&' : ''}front=${front ? 1 : 0}`;
       const ws = new WebSocket(`${WS_BASE_URL}/ws/ibkr/depth/${symKey}${params}`);
       wsRef.current = ws;
+      watch?.opened();
 
       // The backoff resets when a socket that said 'subscribed' closes without an error -- never on
       // 'subscribed' itself: the backend sends it before IBKR answers, and IBKR's refusal (309) comes
@@ -171,6 +225,8 @@ export function useIbkrDepth(symbol: string | null, uiActive = true, options: De
       ws.onmessage = (e) => {
         countSocketMessage('depth', frameBytes(e.data));
         if (!mountedRef.current || ws !== wsRef.current) return;
+        watch?.heard();
+        speaks();
         try {
           const msg = JSON.parse(e.data as string);
           const msgSym = typeof msg.symbol === 'string' ? msg.symbol.toUpperCase() : null;
@@ -255,6 +311,7 @@ export function useIbkrDepth(symbol: string | null, uiActive = true, options: De
       // a healthy ladder for "Connecting depth…" for a frame.
       ws.onclose = () => {
         if (!mountedRef.current || ws !== wsRef.current) return;
+        watch?.closed();
         connectedRef.current = false;
         // Waiting for a lane: never by the backoff -- the operator brings it, or a lane comes to the stock.
         const waiting = line.closed();
@@ -272,6 +329,8 @@ export function useIbkrDepth(symbol: string | null, uiActive = true, options: De
 
     return () => {
       mountedRef.current = false;
+      watch?.dispose();
+      if (quietSinceRef.current != null) noteLinkQuiet(symKey, LINK_PANE_DEPTH, null);
       forgetBook(symKey);
       line.dispose();
       if (lineRef.current === line) lineRef.current = null;
@@ -283,7 +342,7 @@ export function useIbkrDepth(symbol: string | null, uiActive = true, options: De
       wsRef.current = null;
       ws?.close();
     };
-  }, [symbol, traderTab]);
+  }, [symbol, traderTab, watchLink]);
 
   return state;
 }

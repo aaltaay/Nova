@@ -50,3 +50,19 @@ export const VIEW_LOCK_REPORT_PATH = '/market-view/lock';
 
 /** The backend's refusal codes (`market_view.gate`). */
 export const VIEW_REFUSAL_CODES = ['VIEW_STALE', 'ORDER_LATE', 'FEED_STALE', 'BOOK_WAITING', 'TAPE_STALE', 'VIEW_MISSING'] as const;
+
+/**
+ * A socket that went quiet (operator report 2026-11-17: the phone's Time & Sales "was not moving"). The tape's
+ * socket says something at least every second (a print or a `ping`), Level 2's every 250 ms (a book or a `beat`).
+ * A page that watches its link (`watchLink`, the phone: `ibkr/socketWatch.ts`) drops a socket that has said nothing
+ * for LINK_QUIET_MS, or nothing at all LINK_OPEN_MS after it was asked for, and asks again at once. A page coming
+ * back to the front gives its sockets LINK_WAKE_GRACE_MS to speak first.
+ */
+export const LINK_QUIET_MS = 3_500;
+export const LINK_OPEN_MS = 10_000;
+export const LINK_WAKE_GRACE_MS = 1_500;
+export const LINK_WATCH_TICK_MS = 500;
+/** The lock while one of this screen's sockets is quiet: "This screen's Time & Sales has had no word from your PC for 6.0 s." */
+export const LINK_QUIET_LEAD = "This screen's";
+export const LINK_PANE_DEPTH = 'Level 2';
+export const LINK_PANE_TAPE = 'Time & Sales';

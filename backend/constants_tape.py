@@ -65,3 +65,6 @@ TAPE_RECOVERY_VERIFY_SEC = 30.0
 # this long after its ten seconds on the desk's clock, so a print that arrives late still
 # lands in it (#721: arrival trails IBKR's second by 0.6 s at the median, up to 9 s, 2026-10-05).
 TAPE_10SEC_FLUSH_GRACE_SEC = 10.0
+# The most prints a Time & Sales socket is sent from what the PC already holds (``?recent=``,
+# ``routes/tape_recent.py``): the pane's own ring (frontend TAPE_UI_MAX_ROWS).
+TAPE_RECENT_MAX = 200

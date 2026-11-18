@@ -8,6 +8,7 @@
  * words, shown as they came.
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { LEVEL2_NO_WORD, PHONE_TAPE_RECENT } from '../../constantGroups/market_ui';
 import { findOpenIbkrPosition } from '../../chart/positionOverlay';
 import type { NovaActionRecord } from '../../hotkeys/novaActionTypes';
 import { runNovaAction, type NovaActionRuntime } from '../../hotkeys/runNovaAction';
@@ -46,6 +47,8 @@ export interface PhoneTrade {
   workingHere: IbkrOrder[];
   /** Why a new buy is held (the stock's view is behind), in the desk's words; null while it is live. */
   lag: string | null;
+  /** One of this screen's sockets (Level 2 or the tape) has said nothing and is being asked for again. */
+  linkQuiet: boolean;
   /** The padlock: false while locked. Null before the desk has said. */
   armed: boolean | null;
   /** Run one of the desk's one-tap actions. `how: 'done'` for a cancel. */
@@ -93,17 +96,23 @@ export function useLevel2Age(symbol: string | null): number | null {
 function bookWhyOf(depth: ReturnType<typeof useIbkrDepth>): string | null {
   // No lane on the stock (ADR 071): coming back to this screen brings your lane here.
   if (depth.laneWait) return depth.laneWait.plain;
+  // The socket to the PC went quiet: what is drawn may be old, and it is being asked for again.
+  if (depth.quietSince != null) return LEVEL2_NO_WORD;
   if (depth.error) return depth.error;
   if (depth.book?.l1_fallback) return 'IBKR sent no Level 2 for this stock: this is the top of book only.';
   return null;
 }
 
+const PHONE_DEPTH = { watchLink: true } as const;
+const PHONE_TAPE = { watchLink: true, recent: PHONE_TAPE_RECENT } as const;
+
 export function usePhoneTrade(symbol: string): PhoneTrade {
   const session = usePhoneSession();
   const status = useIbkrStatus();
   const account = useIbkrAccountContext();
-  const depth = useIbkrDepth(symbol, true);
-  const tape = useIbkrTape(symbol, true);
+  // The phone is not on the PC: it watches its sockets, and asks the PC for the prints it holds (ADR 070).
+  const depth = useIbkrDepth(symbol, true, PHONE_DEPTH);
+  const tape = useIbkrTape(symbol, true, PHONE_TAPE);
   const lag = useViewLock(symbol);
   const othersHold = useOthersHold(symbol);
 
@@ -162,6 +171,7 @@ export function usePhoneTrade(symbol: string): PhoneTrade {
     working,
     workingHere,
     lag,
+    linkQuiet: depth.quietSince != null || tape.quietSince != null,
     armed: session.armed,
     act,
     place,

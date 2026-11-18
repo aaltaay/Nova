@@ -171,7 +171,7 @@ function TradeFor({ symbol }: { symbol: string }) {
           <b className="ph-trade__px" data-tone={tone}>{px(m?.mainPrice)}</b>
           <i className="ph-trade__pct" data-tone={tone}>{pct1(m?.mainChangePct)}</i>
           <span className="ph-grow" />
-          <DataTapPill symbol={symbol} behind={Boolean(trade.lag)} />
+          <DataTapPill symbol={symbol} behind={Boolean(trade.lag) || trade.linkQuiet} />
           <PadlockButton />
         </div>
       )}
@@ -242,7 +242,7 @@ function TradeFor({ symbol }: { symbol: string }) {
               watch={trade.watch}
               marksOn={marksOn}
             />
-            <TradeTape prints={trade.tape.prints} why={trade.tape.error} halt={shown?.halt ?? null} />
+            <TradeTape tape={trade.tape} halt={shown?.halt ?? null} />
           </>
         )}
       </div>
