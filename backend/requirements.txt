@@ -4,7 +4,7 @@ python-dotenv==1.2.2
 alpaca-py==0.43.2
 requests==2.33.1
 # Notifications to the phone (ADR 070, 2026-11-18): Web Push's scrambling and signing (P-256, AES-GCM).
-cryptography==48.0.0
+cryptography==50.0.0
 tzdata==2025.3
 yfinance==1.2.2
 websockets==15.0.1
