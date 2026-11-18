@@ -5,16 +5,19 @@ AccountType, balances, BuyingPower, Init/MaintMarginReq, RegTEquity/RegTMargin,
 Leverage -- no CASH / MARGIN / RegT / PortfolioMargin class tag. Live smoke
 returned ``AccountType=INDIVIDUAL`` (ownership, same family as LLC / IRA).
 ``managedAccounts`` is only the account id (paper vs live). ``TradingType-S``
-is securities trading-config (often STKNOPT). ``WhatIfPMEnabled`` is a TWS
-Portfolio-Margin what-if switch. Leverage is GPV/NLV. InitMarginReq and
-BuyingPower are amounts -- never classifiers.
+comes only with the account values (``overlay_missing_tags``): IBKR's Account
+Value Keys call it "Account Type", and the operator's Live cash account reads
+``STKCASH`` (2026-11-17). ``STKNOPT`` has been seen too and names no class.
+``WhatIfPMEnabled`` is a TWS Portfolio-Margin what-if switch. Leverage is
+GPV/NLV. InitMarginReq is an amount -- never a classifier.
 
 Flex Query ``margin=CASH|MRGN|PMRGN`` and Client Portal Account Management
 ``margin`` / Margin Type exist, but Nova does not call those APIs.
 
 The snapshot keeps raw AccountType / TradingType / WhatIfPMEnabled / Leverage
 for tooltip/debug. ``account_class`` is cash|margin on a connected snapshot
-(env override, then tokens, then BP vs cash / ExcessLiquidity, else Cash).
+(env override, then tokens, then leverage over ExcessLiquidity / cash, else
+Cash; ``ibkr.account_class``).
 """
 from __future__ import annotations
 

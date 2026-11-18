@@ -41,6 +41,23 @@ describe('classifyMarginKind / shortSideVisible', () => {
     expect(shortSideVisible(summary({ AccountType: 'MARGIN' }))).toBe(true);
   });
 
+  it("reads IBKR's own TradingType-S word before any figure", () => {
+    // The operator's Live cash account, 2026-11-17.
+    const cash = summary({ AccountType: 'INDIVIDUAL', TradingType: 'STKCASH', BuyingPower: 5083.04, TotalCashValue: 5083.04, ExcessLiquidity: 5083.04 });
+    expect(classifyMarginKind(cash)).toBe('cash');
+    // A margin account with every dollar in use: no buying power left, still margin.
+    const used = summary({ AccountType: 'INDIVIDUAL', TradingType: 'STKMRGN', BuyingPower: 0, TotalCashValue: -13_000, ExcessLiquidity: 0 });
+    expect(classifyMarginKind(used)).toBe('margin');
+    expect(shortSideVisible(used)).toBe(true);
+  });
+
+  it("keeps margin while a short's proceeds sit in cash", () => {
+    const short = summary({ AccountType: 'INDIVIDUAL', TradingType: 'STKNOPT', BuyingPower: 11_600, TotalCashValue: 13_300, ExcessLiquidity: 2_900 });
+    expect(classifyMarginKind(short)).toBe('margin');
+    const borrowing = summary({ AccountType: 'INDIVIDUAL', BuyingPower: 14_000, TotalCashValue: -1_000, ExcessLiquidity: 3_500 });
+    expect(classifyMarginKind(borrowing)).toBe('margin');
+  });
+
   it('hides Short when disconnected', () => {
     expect(
       shortSideVisible({ connected: false, mode: 'disconnected', AccountType: 'MARGIN' }),

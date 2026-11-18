@@ -4,19 +4,19 @@
  * TWS AccountType is ownership (INDIVIDUAL / LLC / IRA). A connected snapshot
  * is always cash or margin. Short is visible only on margin.
  * Prefer stamped `account_class` from GET /api/ibkr/account (includes env).
+ * Unstamped: IBKR's TradingType-S word (STKCASH / STKMRGN), then leverage --
+ * the figures only ever prove margin. Mirror backend/ibkr/account_class.py.
  */
-import {
-  IBKR_ACCOUNT_CLASS_CASH_MAX_BP_RATIO,
-  IBKR_ACCOUNT_CLASS_MARGIN_MIN_BP_RATIO,
-} from '../constantGroups/ibkr_account';
+import { IBKR_ACCOUNT_CLASS_MARGIN_MIN_BP_RATIO } from '../constantGroups/ibkr_account';
 import type { IbkrAccountSummary } from './types';
 
 export type AccountTypeKind = 'cash' | 'margin' | 'unknown';
 
-const CASH_TOKENS = new Set(['CASH', 'CASH ACCOUNT']);
+const CASH_TOKENS = new Set(['CASH', 'CASH ACCOUNT', 'STKCASH']);
 const MARGIN_TOKENS = new Set([
   'MARGIN',
   'MRGN',
+  'STKMRGN',
   'REGT',
   'REGT MARGIN',
   'REG T MARGIN',
@@ -48,14 +48,10 @@ export function classifyMarginKind(summary: IbkrAccountSummary): 'cash' | 'margi
     if (kind === 'cash' || kind === 'margin') return kind;
   }
   const bp = asFinite(summary.BuyingPower);
-  const cash = asFinite(summary.TotalCashValue);
-  const excess = asFinite(summary.ExcessLiquidity);
-  if (bp != null && cash != null && cash > 0) {
-    if (bp <= cash * IBKR_ACCOUNT_CLASS_CASH_MAX_BP_RATIO) return 'cash';
-    if (bp >= cash * IBKR_ACCOUNT_CLASS_MARGIN_MIN_BP_RATIO) return 'margin';
-  }
-  if (bp != null && excess != null && excess > 0) {
-    if (bp >= excess * IBKR_ACCOUNT_CLASS_MARGIN_MIN_BP_RATIO) return 'margin';
+  if (bp == null) return 'cash';
+  // A held short's proceeds sit in cash, so "buying power under cash" never proves a cash account.
+  for (const base of [asFinite(summary.ExcessLiquidity), asFinite(summary.TotalCashValue)]) {
+    if (base != null && base > 0 && bp >= base * IBKR_ACCOUNT_CLASS_MARGIN_MIN_BP_RATIO) return 'margin';
   }
   return 'cash';
 }
