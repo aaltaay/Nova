@@ -25,6 +25,9 @@ BRAIN_HELD = "BRAIN_HELD"                     # another program holds the door
 BRAIN_NOT_CLAIMED = "BRAIN_NOT_CLAIMED"       # a write before its claim
 BRAIN_SWITCH_OFF = "BRAIN_SWITCH_OFF"
 BRAIN_NOT_PAPER = "BRAIN_NOT_PAPER"
+BRAIN_PADLOCK = "BRAIN_PADLOCK"               # the desk is disarmed by a padlock the operator locked
+BRAIN_PADLOCK_TEXT = ("You locked the padlock: the brain never unlocks it. Open it when you want the brain to "
+                      "trade.")
 BRAIN_SHAPE = "BRAIN_SHAPE"
 BRAIN_PAST_FLAT_BY = "BRAIN_PAST_FLAT_BY"
 BRAIN_HALTED = "BRAIN_HALTED"
@@ -38,4 +41,4 @@ BRAIN_NOT_CLAIMED_TEXT = "This program has not claimed the brain's door (POST /a
 BRAIN_UNREAD_TEXT = "Paper could not be read just now, so the brain sends nothing: an unknown is never read as flat"
 
 BRAIN_EVENT_KINDS = ("claim", "watch", "armed", "buy_set", "fill", "stop_moved", "close", "refused", "flat_by",
-                     "silent", "switch_on", "switch_off", "handed")
+                     "silent", "switch_on", "switch_off", "handed", "paused", "resumed")

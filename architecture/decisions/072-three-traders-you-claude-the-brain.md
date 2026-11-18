@@ -272,6 +272,42 @@ Rejected: the brain trading Paper while the desk is on Live (Paper would need it
 desk's latch, and its orders would share the door with Live's), and Live switching the traders Off (it hands a
 Paper trade to the operator while they trade real money).
 
+## Amendment 4 (2026-11-18): the pause has no gaps, and the brain's way to Live is written down
+
+The operator, 2026-11-18: "Okay, but eventually we want the brain to work on live." Then: "I want to fill out these
+gaps right now ... we don't have to wire the brain to live yet ... we only have 3 spots to level 2 ... When we switch
+to live, it needs to maintain that lane and reconfigure itself to where does it make sense to place a trade or not."
+Asked how the brain's Live money would stay apart from theirs, they chose **one account, two books**.
+
+**The pause, completed.** An AI trader opens trades on one venue (`TRADER_VENUE`, Paper). While the desk shows any
+other venue, Live or Sim, it is paused (`backend/traders/pause.py`, `traders.md` "Paused"):
+
+- **Leaving Paper cancels its unfilled entries on Paper** (source `cancel_working`, code `TRADER_PAUSED`). An
+  entry's waiting exits go with it; the exits of shares it holds keep resting. Before this a buy still waiting on
+  Paper could fill after the desk went to Live, opening a position during the pause. Each cancel is on the venue
+  switch's `left` (the desk's notice) and on the trader's stream.
+- **The pause is said.** `paused: {reason, venue, text}` on `GET /api/traders`, `GET /api/brain` and
+  `GET /api/agent/trader`, and one line on the trader's stream when it starts (`paused`) and ends (`resumed`).
+- **Its figures are its own account's.** A trader's position, day and budget read Paper whatever the desk shows.
+  Before this they read the desk venue's account, so on Sim its open Paper trade vanished from its pill.
+- **The padlock is said.** The brain's `why_not` names a padlock you locked (`BRAIN_PADLOCK`); before, its arm was
+  refused in words only to its program.
+- **The lane stays.** Unchanged from Amendment 3 and ADR 071: lane 2 is Claude's and lane 3 the brain's on every
+  venue, and the brain reads `venue`, `paused` and `can_enter` to know whether a trade makes sense where the desk is.
+
+**The way to Live (a plan; nothing here opens Live).** Paper is a stage, not the end. Each step needs the operator's
+word, and Invariant #7 and this ADR are changed before any code:
+
+1. **Proof on Paper:** the brain's Paper results match its backtest (the operator's bar, 2026-09-22).
+2. **One account, two books on Live** (chosen 2026-11-18): every Live order of the brain is stamped as its own and
+   booked to its own book, as on Paper. Live keeps no books today (the owners' rules run on Paper and Sim only).
+3. **Its own Live limits,** set by the operator: size, budget and day stop. Live arms only with the operator's PIN;
+   the brain never arms Live itself.
+4. **The locks, each opened on purpose and for the brain only:** `traders.switches.on_refusal` (`TRADER_LIVE`),
+   `TRADER_VENUE` / `BRAIN_VENUE`, and `execution.venue_door` (`wrong_venue`, `_live_close_refusal`).
+5. **Not decided:** what turning the brain On for Live does to a trade it still holds on Paper. Proposed: the
+   Paper trade runs to its own exits on Paper, and the brain starts flat on Live.
+
 ## Consequences
 
 - Each trader's record is its own, and a takeover never moves P&L between records.

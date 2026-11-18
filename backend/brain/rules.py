@@ -17,6 +17,8 @@ from brain.constants_brain import (
     BRAIN_NO_LINE,
     BRAIN_NOT_PAPER,
     BRAIN_ORIGIN,
+    BRAIN_PADLOCK,
+    BRAIN_PADLOCK_TEXT,
     BRAIN_PAST_FLAT_BY,
     BRAIN_SHAPE,
     BRAIN_STALE,
@@ -78,6 +80,10 @@ def standing_refusal() -> tuple[str, str] | None:
         return BRAIN_SWITCH_OFF, "The brain's switch is Off: no new trade until the operator switches it On"
     if venue() != BRAIN_VENUE:
         return BRAIN_NOT_PAPER, f"The desk is on {venue()}: the brain opens trades only while it is on Paper"
+    from ibkr import safety
+
+    if not safety.armed() and safety.locked_by() == "operator":
+        return BRAIN_PADLOCK, BRAIN_PADLOCK_TEXT       # its arm would be refused: said here, never a silent block
     if why := past_flat_by(limits.of(BRAIN_ORIGIN)):
         return BRAIN_PAST_FLAT_BY, why
     try:

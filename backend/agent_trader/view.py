@@ -141,4 +141,12 @@ def status(now: float | None = None) -> dict[str, Any]:
         "note": st.get("note"),
         "events": list(reversed(st.get("events") or []))[:_EVENTS_SHOWN],
         "read_error": read_error,
+        "paused": _paused(),
     }
+
+
+def _paused() -> dict[str, Any] | None:
+    """Claude is paused while its switch is On and the desk is off Paper (``traders.pause``)."""
+    from traders import pause
+
+    return pause.paused("claude")

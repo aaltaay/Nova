@@ -24,6 +24,12 @@ TRADER_UNKNOWN = "TRADER_UNKNOWN"
 # The door refuses an AI trader's new order while its switch is Off.
 TRADER_OFF = "TRADER_OFF"
 
+# The one venue an AI trader opens trades on. While its switch is On and the desk shows another venue it is paused
+# (``traders.pause``, ADR 072 Amendments 3 and 4); ``TRADER_PAUSED`` is that reason, and the cancel code of an
+# unfilled entry Nova cancels when the desk leaves this venue.
+TRADER_VENUE = "paper"
+TRADER_PAUSED = "TRADER_PAUSED"
+
 # The traders that turn themselves On each trading morning (ADR 072 Amendment 2), each with the ``.env`` name
 # that, set to 0, leaves its switch to the operator's press alone. ``by`` on a switch the schedule set.
 TRADER_WAKES_ENV = {"brain": "NOVA_BRAIN_WAKES"}

@@ -7,7 +7,13 @@ import logging
 from typing import Any
 
 from brain import book, rules, session
-from brain.constants_brain import BRAIN_DAY_STOP_USD, BRAIN_ORIGIN, BRAIN_SCHEMA_VERSION, BRAIN_UNREAD_TEXT
+from brain.constants_brain import (
+    BRAIN_DAY_STOP_USD,
+    BRAIN_ORIGIN,
+    BRAIN_SCHEMA_VERSION,
+    BRAIN_UNREAD_TEXT,
+    BRAIN_VENUE,
+)
 from constants_traders import TRADER_STATE_BUY_SET, TRADER_STATE_IN_TRADE, TRADER_STATE_WATCHING
 
 logger = logging.getLogger(__name__)
@@ -69,10 +75,10 @@ def status(session_id: str | None = None) -> dict[str, Any]:
     """``GET /api/brain``: everything the brain's program needs to know before it acts."""
     from sim.mode import venue
     from traders import limits as trader_limits
-    from traders import switches, view as traders_view
+    from traders import pause, switches, view as traders_view
 
     now = switches.now_ts()
-    broker = traders_view._broker(venue())          # the desk venue's account, Paper on Live (as GET /api/traders)
+    broker = traders_view._broker()                 # the brain's own account: Paper, whatever the desk shows
     refused_on = switches.on_refusal(BRAIN_ORIGIN, now)
     why_not = rules.standing_refusal()
     lane = lane_view()
@@ -95,5 +101,6 @@ def status(session_id: str | None = None) -> dict[str, Any]:
         "handed": handed, "orders": orders, "today": today,
         "limits": {**traders_view._limits(BRAIN_ORIGIN, broker), **{"flat_by": trader_limits.of(BRAIN_ORIGIN)["flat_by"]}},
         "can_enter": why_not is None, "why_not": None if why_not is None else {"code": why_not[0], "text": why_not[1]},
+        "trades_on": BRAIN_VENUE, "paused": pause.paused(BRAIN_ORIGIN, now),
         "note": session.note(), "reading": reading(lane["symbol"]), "events": session.events(now), "error": error,
     }

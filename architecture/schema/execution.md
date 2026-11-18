@@ -430,8 +430,9 @@ then asks for the live Gateway (`ibkr.client.request_gateway_mode("live")`), as 
 come back as `gateway` only when its `launch_action` is not `noop`. `GET /api/phone/venue/effects` reads, before the
 tap, what leaving the venue would do: the padlock when it is open (`agent_desk.safety.switch_changes`). A reader
 that fails is named in `unknown`, never read as nothing. Since the bots retired (ADR 072) there is no Bot dial to
-follow the venue and no Nova entry waiting to fill there (`stock_mode/leave.py` is gone), so the menu names neither
-and the switch's `left` is always empty.
+follow the venue (`stock_mode/leave.py` is gone). Leaving Paper cancels Claude's and the brain's unfilled entries
+there (ADR 072 Amendment 4, `traders.md` "Paused"): the menu names each one before the tap (kind `trader_entry`),
+and the switch's `left` lists each one cancelled.
 
 **Its clock and its view.** `client_timing` and `view` are required, so the stale-view gate never skips a phone order.
 The phone writes `action_wall_ms` on the PC's clock (its own clock plus the offset the link test measures from

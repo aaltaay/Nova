@@ -225,9 +225,10 @@ def set_venue(target: str, *, persist: bool = True, left: list[dict] | None = No
     desk and would be handed a different one already armed. The Sim feed runs
     only on the Sim venue; Paper reads the live market exactly like Live.
 
-    ``left`` stays on the answer, always empty: Nova's own entries that a venue
-    change used to cancel (ADR 042 F) are retired with the bots (ADR 072). A caller
-    may still pass its own list.
+    ``left`` on the answer lists what the change cancelled on the venue it left:
+    Claude's and the brain's unfilled entries on Paper (``traders.pause``, ADR 072
+    Amendment 4), after any rows the caller passed. The bots' own entries a venue
+    change used to cancel (ADR 042 F) retired with them (ADR 072).
     """
     global _override, _venue_loaded
     key = (target or "").strip().lower()
@@ -245,6 +246,11 @@ def set_venue(target: str, *, persist: bool = True, left: list[dict] | None = No
     from bot import venue_levels as _bot_levels
 
     _bot_levels.venue_changed(previous, key)
+    # Claude and the brain open trades on Paper only: leaving it pauses them and cancels their unfilled entries
+    # there, each one named on ``left`` (ADR 072 Amendment 4). ``desk_changed`` never raises.
+    from traders import pause as _pause
+
+    left = [*(left or []), *_pause.desk_changed(previous, key)]
     if key == DESK_VENUE_SIM:
         # A live Session Record keeps running into Sim. It used to be stopped
         # here because Sim piped SIM1 ticks into the recorder; SIM1 is gone

@@ -392,6 +392,29 @@ def test_on_live_claude_still_raises_its_own_stop_on_paper(paper):
     assert ledger.position("SMPL") == 500                     # nothing was sold, and nothing went to Live
 
 
+def test_leaving_paper_cancels_claudes_waiting_buy_and_its_status_says_paused(paper):
+    """ADR 072 Amendment 4: Claude's buy still waiting on Paper is cancelled when the desk leaves Paper, and its
+    status says it is paused while its switch is On."""
+    from traders import switches
+
+    h = _seat(paper)
+    switches.set_switch("claude", True, "test")
+    got = paper.client.post("/api/agent/trader/order", headers=h, json={
+        "kind": "limit", "symbol": "SMPL", "qty": 600, "entry": 4.10, "stop": 3.90, "target": 4.60, "why": "go"})
+    assert got.status_code == 200 and ledger.working() and ledger.position("SMPL") == 0
+    moved = paper.client.post("/api/desk/venue", headers=paper.key, json={"venue": "live"})
+    assert moved.status_code == 200, moved.text
+    assert [(r["symbol"], r["by"]) for r in moved.json()["left"]] == [("SMPL", "claude")]
+    assert ledger.working() == []
+    status = paper.client.get("/api/agent/trader").json()
+    assert status["paused"]["reason"] == "TRADER_PAUSED" and status["paused"]["venue"] == "live"
+    assert [e["kind"] for e in status["events"]][:2] == ["paused", "paused"]
+    claude = paper.client.get("/api/traders").json()["traders"]["claude"]
+    assert claude["paused"]["venue"] == "live" and claude["text"] == "Claude · Paused · desk on Live"
+    set_venue("paper")
+    assert paper.client.get("/api/agent/trader").json()["paused"] is None
+
+
 def test_a_break_sends_its_bracket_when_a_print_reaches_the_trigger(paper):
     h = _seat(paper)
     got = paper.client.post("/api/agent/trader/order", headers=h, json={

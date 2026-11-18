@@ -968,7 +968,7 @@ switches and the limits: `traders.md`.
   `/pnl`, `/triggers`. The session read no longer carries `bot_on`, `keys`, `armed`, `has_desk_arm`, `deactivated`,
   `ready`, `ready_reason`, `live_fire_ready`, `gates`, `entries_today`, `runner` or `trade`, and `shorts` keeps only
   `day_cover: {alarms}` (the day cover's alarms, `short_sale.cover_alarm`, which every desk window polls here and
-  `DayCoverAlarms` shows; the short chips went with the Bots page); the stock read's fact `bot` is `desk`; `/api/desk/venue`'s `left` is always empty; the restart check has no `bot_trade` or
+  `DayCoverAlarms` shows; the short chips went with the Bots page); the stock read's fact `bot` is `desk`; `/api/desk/venue`'s `left` holds only Claude's and the brain's entries cancelled on leaving Paper (`traders.md` "Paused"); the restart check has no `bot_trade` or
   `stock_modes` kind.
 - **Every strategy reads Eyes** (`bot/setup_levels.py`): a stored level reads as watching; a level write is refused
   `410 BOT_STRATEGIES_WATCH` ("Every strategy watches on Level 1 and none trades ... Its numbers are in Settings >
@@ -1020,8 +1020,12 @@ were the bots' hotkeys, sized by sleeves and lists that retired with them.
   session: {held, mine, heartbeat_at}, lane: {symbol, why, since, depth, tape}, position: {symbol, qty, avg_cost,
   mark, unrealized_pnl} | null, orders: [{order_id, symbol, side, qty, order_type, limit_price, stop_price, status}],
   handed: [{symbol, qty, stop_price}], today: {pnl, loss_limit_usd, tripped_at}, limits: {max_shares, risk_usd, budget_usd, budget_used_usd, flat_by},
-  can_enter, why_not: {code, text} | null, note, reading, events, error}`. `can_enter` is false with `why_not` whenever an
-  entry sent now would be refused before its own shape is read: the same codes as below.
+  can_enter, why_not: {code, text} | null, trades_on, paused: {reason, venue, text} | null, note, reading, events,
+  error}`. `can_enter` is false with `why_not` whenever an
+  entry sent now would be refused before its own shape is read: the same codes as below, and `BRAIN_PADLOCK` while
+  the desk is disarmed by a padlock you locked (the brain never unlocks it). `trades_on` is the venue it opens trades
+  on (`"paper"`); `paused` is set while its switch is On and the desk shows another venue (`traders.md` "Paused").
+  `position`, `handed`, `today` and `limits` are Paper's, whatever the desk shows.
 - `POST /api/brain/claim` and `POST /api/brain/heartbeat` -> `{ok, session}`; `409 BRAIN_HELD` while another id's
   heartbeat is fresh. Every other write is refused `409 BRAIN_NOT_CLAIMED` from a session that does not hold the
   door, and counts as a heartbeat from the one that does.
@@ -1057,7 +1061,8 @@ were the bots' hotkeys, sized by sleeves and lists that retired with them.
 - **A brain that stops answering sells nothing.** Its stop and target keep resting, flat by still closes it, and
   its pill says "Brain · On · its program is not running". Nothing restarts it from Nova.
 - **Events** (`events`, newest first, the last 50 today): `claim`, `watch`, `armed`, `buy_set`, `fill`, `stop_moved`,
-  `close`, `refused`, `flat_by`, `silent`, `switch_on`, `switch_off`, `handed`: `{at, kind, symbol, text}`.
+  `close`, `refused`, `flat_by`, `silent`, `switch_on`, `switch_off`, `handed`, `paused`, `resumed`: `{at, kind,
+  symbol, text}`.
 
 **Left for a later batch:** the brain's door on Sim, its own loss line (`loss-limit.md`, "Four lines"), and the
 setups feed above.
