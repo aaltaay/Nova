@@ -46,6 +46,7 @@ ORDER_PATH_MODULES = (
     "traders.handed",
     "traders.limits",
     "traders.door",
+    "phone_notify.hooks",         # a fill is handed to the phone's notifier (ADR 070): its push libraries load here
 )
 PAPER_BROKER = "practice.broker.for_venue(paper)"
 
