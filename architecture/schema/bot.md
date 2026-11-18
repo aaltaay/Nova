@@ -1043,7 +1043,10 @@ were the bots' hotkeys, sized by sleeves and lists that retired with them.
 - `POST /api/brain/stop {symbol, stop}` raises its resting stop (a stop only moves up); `POST /api/brain/cancel {order_id}` cancels one of
   its own working orders; `POST /api/brain/close {symbol, why?}` cancels its working orders there and sells its
   shares at market (source `flatten`, origin `brain`). These three always go: a close is never refused by the
-  switch, the day stop or the clock.
+  switch, the day stop or the clock. All three name Paper (`target_venue: "paper"`), so they also go while the desk
+  is on Live or Sim (ADR 072 Amendment 3): there the brain opens nothing, and its open Paper trade keeps its exits.
+  The stop raise is a `replace` with source `cancel_working`, which the door admits only as the brain's own resting
+  stop moved up (`execution.md`, "A trader's stop raise").
 - **The day stop and flat by.** Until the loss lines land (ADR 072 build order 4) the brain's day stop is
   `BRAIN_DAY_STOP_USD` (-$500) on its own book's realised and open P&L today: at it the brain reads Done for today,
   no new entry until 04:00 ET, its open trade keeps its exits, and On is refused (`TRADER_DAY_STOP`). At its

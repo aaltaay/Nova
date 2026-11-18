@@ -62,10 +62,11 @@ entries and armed breaks again); Claude's lane's own daily max loss -- no new en
 entries 07:00-15:30 ET on weekdays; only on the seat's stock with Claude's Level 2 line live; never where Paper holds
 shares or working orders that are not Claude's; never while the view lock holds (`market_view.gate.desk_lock`).
 
-**Sends.** Entries `operation: "bracket"`, `source: "bot"`, `origin: "claude"`, `expected_venue: "paper"`; stop
-moves `replace` the same way; closes `source: "flatten"` market SELLs and cancels `source: "cancel_working"`, both
-`target_venue: "paper"`. `execution.venue_door` refuses any `claude` send while the desk is not on Paper and any
-`claude` close named to Live. Practice rows carry `order_origin: "claude"`; Claude's position is its own fills, never more than Paper holds in the stock: Nova's own closes (the loss limit's Auto sell, KILL, a margin call) sell Claude's shares under their own origin, and Claude's P&L counts those shares at the price those closes got.
+**Sends.** Entries `operation: "bracket"`, `source: "bot"`, `origin: "claude"`, `expected_venue: "paper"`; closes
+`source: "flatten"` market SELLs, cancels `source: "cancel_working"` and stop raises (a `replace` with `source:
+"cancel_working"` and the new `stop_price` alone; `execution.md`, "A trader's stop raise"), all three
+`target_venue: "paper"`, so they go whatever the desk shows (ADR 072 Amendment 3). `execution.venue_door` refuses
+any other `claude` send while the desk is not on Paper and anything of Claude's named to Live. Practice rows carry `order_origin: "claude"`; Claude's position is its own fills, never more than Paper holds in the stock: Nova's own closes (the loss limit's Auto sell, KILL, a margin call) sell Claude's shares under their own origin, and Claude's P&L counts those shares at the price those closes got.
 Claude's fills still count in the Paper account's loss-limit totals and on the Bots line's figures (`loss_limit.accounts.by_of`, `LOSS_LIMIT_BOT_CLOSE_ORIGINS`), but no shared line refuses Claude's buys on Paper.
 
 **Events** (`kind`): `on`, `off`, `watch`, `line`, `line_wait`, `armed`, `buy_set`, `break_set`, `break_wait`, `break_end`, `refused`, `stop`, `cancel`, `close`, `fill` ("Claude bought 510 SMPL at 4.40", each fill said once), `resumed` (read back after a restart), `taken_over`, `reflex_set`, `reflex_fired` (also the guard's closes), `reflex_end`, `switch_off`, `handed`, `day_close` and `close` (also each journaled trade: "trade on SMPL closed +$8.00: manual (Claude closed it at market)"), `line_taken` ("took KTTA's auto-record line for SMPL", not toasted), `tab_line` ("took your hidden SMPL tab's line · watching RUNR"), `tab_line_back` ("You took SMPL's line back from Claude · RUNR stop and sell still rest", said as written); the desk toasts and speaks them.

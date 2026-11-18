@@ -374,6 +374,24 @@ def test_the_desk_on_live_refuses_claudes_entry(paper):
     assert got.status_code == 409 and got.json()["detail"]["reason"] == "AGENT_NOT_PAPER"
 
 
+def test_on_live_claude_still_raises_its_own_stop_on_paper(paper):
+    """ADR 072 Amendment 3: the desk on Live pauses Claude's entries; its open Paper trade keeps its stop, and the
+    stop still moves up -- with the desk disarmed, as a close goes."""
+    from ibkr import safety
+
+    h = _seat(paper)
+    got = paper.client.post("/api/agent/trader/order", headers=h, json={
+        "kind": "limit", "symbol": "SMPL", "qty": 500, "entry": 4.25, "stop": 4.00, "target": 4.80, "why": "go"})
+    assert got.status_code == 200 and ledger.position("SMPL") == 500
+    stop = next(r for r in ledger.working() if r["leg_role"] == "stop")
+    set_venue("live")
+    assert safety.armed() is False                         # the venue change disarmed the desk
+    up = paper.client.post("/api/agent/trader/stop", headers=h, json={"order_id": stop["order_id"], "stop": 4.10})
+    assert up.status_code == 200, up.text
+    assert float(next(r for r in ledger.working() if r["leg_role"] == "stop")["stop_price"]) == 4.10
+    assert ledger.position("SMPL") == 500                     # nothing was sold, and nothing went to Live
+
+
 def test_a_break_sends_its_bracket_when_a_print_reaches_the_trigger(paper):
     h = _seat(paper)
     got = paper.client.post("/api/agent/trader/order", headers=h, json={

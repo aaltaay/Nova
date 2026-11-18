@@ -10,7 +10,8 @@ whatever the desk shows, so a ``kill`` cancel names its ``target_venue`` and is 
 (``resolve``). Nova's own closes (ADR 048): the day cover and the margin call close a position on
 the venue that holds it, so their ``cancel_working`` cancels and their protective ``flatten``
 closes name it too, and so do the Live Trader bot's closes, cancels and stop resizes on Paper (ADR 055, #1023) and the daily loss
-limit's Auto sell on any venue (ADR 056), and Claude's closes and cancels on Paper (ADR 068). On Live only the day cover (step 6) and the loss limit's Auto sell may --
+limit's Auto sell on any venue (ADR 056), and Claude's and the brain's closes, cancels and stop raises on Paper
+(ADR 068, ADR 072 Amendment 3; a stop raise is ``execution.stop_raise``'s to check). On Live only the day cover (step 6) and the loss limit's Auto sell may --
 IBKR liquidates Live itself, so a margin call never goes there, and the Live Trader bot never trades Live. The day
 cover's close is a market BUY; Auto sell's is the account flatten's ticket (market in regular hours, a marketable
 limit outside them). Both carry ``intent: "flatten"``, which the door checks against IBKR's own position
@@ -23,7 +24,7 @@ Owner: this module (the rules; the lock and the send are ``execution.service``'s
 from __future__ import annotations
 
 from constants_sim import DESK_PRACTICE_VENUES, DESK_VENUE_LIVE, DESK_VENUES
-from execution import inflight
+from execution import inflight, stop_raise
 from execution.models import ExecutionCommand
 
 TARGET_REFUSED = "TARGET_VENUE_REFUSED"
@@ -70,12 +71,16 @@ def target_refusal(cmd: ExecutionCommand) -> str | None:
     # #1023: the Live Trader bot's buy stop resized to its shares, the size alone: no price moves on another venue.
     stop_resize = (cmd.origin == "live_trader" and cmd.operation == "replace" and cmd.source == "cancel_working"
                    and cmd.resize_qty is not None and cmd.limit_price is None and cmd.stop_price is None)
-    nova_close = nova_close or stop_resize
+    # ADR 072 Amendment 3: Claude's or the brain's own stop moved up on Paper, checked against Paper's book.
+    raised = stop_raise.is_one(cmd)
+    nova_close = nova_close or stop_resize or raised
     if not (kill_cancel or nova_close):
         return ("only the kill switch's cancels and Nova's own closes (the day cover, a margin call, the Live "
                 "Trader bot, Claude, the loss limit's Auto sell) may name a venue other than the desk's -- every "
                 "other order is sent on the desk's venue")
     if nova_close and target == DESK_VENUE_LIVE and (why := _live_close_refusal(cmd)):
+        return why
+    if raised and (why := stop_raise.refusal(cmd, target)):
         return why
     if target == DESK_VENUE_LIVE and not ibkr_connected():
         return "Live's orders are IBKR's, and IBKR is not connected -- nothing was sent"

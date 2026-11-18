@@ -329,6 +329,68 @@ def test_the_day_stop_reads_done_for_today_and_on_is_refused(paper, monkeypatch)
     assert got.status_code == 409 and got.json()["detail"]["reason"] == "TRADER_DAY_STOP"
 
 
+def test_on_live_the_brain_opens_nothing_and_its_paper_trade_keeps_working(paper):
+    """ADR 072 Amendment 3 (the operator, 2026-11-18: "Pause it, as now"): on Live the brain opens nothing, its
+    switch and lane stay as they were, and its open Paper trade keeps its stop -- which still moves up -- and closes."""
+    h = _brain(paper)
+    assert paper.client.post("/api/brain/order", headers=h, json=GOOD).status_code == 200
+    set_venue("live")
+    assert _safety.armed() is False                                  # the venue change disarmed the desk
+    brain = paper.client.get("/api/traders").json()["traders"]["brain"]
+    assert brain["on"] is True and brain["lane"]["symbol"] == "SMPL"    # Live switches nothing Off and moves no lane
+    entry = paper.client.post("/api/brain/order", headers=h, json={**GOOD, "symbol": "GAPX", "limit": 1.92,
+                                                                    "stop": 1.80, "target": 2.40})
+    assert entry.status_code == 409 and entry.json()["detail"]["reason"] == "BRAIN_NOT_PAPER"
+    assert paper.client.post("/api/brain/arm", headers=h).json()["detail"]["reason"] == "BRAIN_NOT_PAPER"
+    up = paper.client.post("/api/brain/stop", headers=h, json={"symbol": "SMPL", "stop": 4.10})
+    assert up.status_code == 200, up.text
+    assert float(book.stop_of("SMPL")["stop_price"]) == 4.10 and book.positions()["SMPL"]["qty"] == 500
+    assert paper.client.post("/api/brain/close", headers=h, json={"symbol": "SMPL"}).status_code == 200
+    assert book.positions() == {} and book.working() == []
+
+
+def test_only_a_traders_own_stop_moved_up_may_name_paper(paper):
+    """The door's own check of a stop raise (``execution.stop_raise``): nothing else shaped like it names a venue."""
+    from execution import venue_door
+    from execution.models import ExecutionCommand
+
+    h = _brain(paper)
+    assert paper.client.post("/api/brain/order", headers=h, json=GOOD).status_code == 200
+    rows = {r["leg_role"]: int(r["order_id"]) for r in book.working()}
+
+    def refusal(**change):
+        fields = {"operation": "replace", "idempotency_key": "raise", "source": "cancel_working", "symbol": "SMPL",
+                  "order_id": rows["stop"], "stop_price": 4.10, "target_venue": "paper", "origin": "brain", **change}
+        return venue_door.target_refusal(ExecutionCommand(**fields))
+
+    assert refusal() is None
+    assert "only moves up" in refusal(stop_price=3.95)
+    assert "only moves up" in refusal(stop_price=4.00)                  # the same price is not a raise
+    assert "not The brain's own resting stop" in refusal(order_id=rows["target"])
+    assert "not Claude's own resting stop" in refusal(origin="claude")
+    assert "not working on Paper" in refusal(order_id=9999)
+    assert "never go to Live" in refusal(target_venue="live")
+    assert "on Paper only" in refusal(target_venue="sim")
+    for not_a_raise in ({"limit_price": 4.30}, {"resize_qty": 100.0}, {"source": "bot"}, {"origin": None},
+                        {"origin": "loss_limit"}):
+        assert "only the kill switch's cancels" in refusal(**not_a_raise)
+    assert paper.client.put("/api/traders/brain/switch", headers=paper.key, json={"on": False}).status_code == 200
+    assert "handed to you" in refusal()                                 # Off handed SMPL: its stop is yours to move
+
+
+def test_a_stop_raise_is_refused_when_papers_book_cannot_be_read(paper, monkeypatch):
+    from execution import stop_raise
+    from execution.models import ExecutionCommand
+
+    def unread(venue):
+        raise RuntimeError("ledger locked")
+
+    monkeypatch.setattr(practice_broker, "for_venue", unread)
+    cmd = ExecutionCommand(operation="replace", idempotency_key="raise-unread", source="cancel_working",
+                           symbol="SMPL", order_id=1, stop_price=4.10, target_venue="paper", origin="brain")
+    assert stop_raise.is_one(cmd) and "could not be read" in stop_raise.refusal(cmd, "paper")
+
+
 def test_the_brain_never_reaches_live(paper):
     from execution import venue_door
     from execution.models import ExecutionCommand

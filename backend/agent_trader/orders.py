@@ -4,9 +4,10 @@ bot's shape (ADR 055).
 - An **entry** is a long bracket -- a LMT entry with its stop and one or two targets resting with it
   (``practice.bracket``), so a fill is never unprotected -- source ``bot``, ``origin: "claude"``, sent on the
   desk's venue, which must be Paper (``expected_venue``; ``venue_door`` refuses any ``claude`` send elsewhere).
-- A **stop move** is a price-only replace of Claude's own stop leg, also on Paper only.
+- A **stop move** is a price-only replace of Claude's own stop leg, upward (source ``cancel_working``).
 - A **close** is the day cover's protective flatten (source ``flatten``, market) and a **cancel** is source
-  ``cancel_working``; both name Paper (``target_venue``), so they reach Claude's shares whatever the desk shows.
+  ``cancel_working``. All three name Paper (``target_venue``), so they reach Claude's trade whatever the desk
+  shows (ADR 072 Amendment 3).
 """
 from __future__ import annotations
 
@@ -61,10 +62,12 @@ async def send_entry(order: dict[str, Any], *, tag: str) -> Any:
 
 
 async def move_stop(order_id: int, symbol: str, stop: float) -> Any:
+    """Raise Claude's own resting stop. It names Paper, so it goes while the desk is on Live or Sim; the door
+    admits it only as Claude's own stop moved up (``execution.stop_raise``)."""
     return await _execute(ExecutionCommand(
-        operation="replace", idempotency_key=_key("stop"), source="bot", origin=AGENT_ORIGIN,
+        operation="replace", idempotency_key=_key("stop"), source="cancel_working", origin=AGENT_ORIGIN,
         symbol=symbol.upper(), order_id=int(order_id), stop_price=round(float(stop), 4),
-        expected_venue=AGENT_VENUE))
+        target_venue=AGENT_VENUE))
 
 
 async def cancel(order_id: int, symbol: str) -> Any:
