@@ -11,8 +11,16 @@ export const CHART_BAR_COUNTDOWN_WARN_COLOR = '#f59e0b';
 /** The chart background (#161921), nearly opaque, so wicks and grid lines never run through the digits. */
 export const CHART_BAR_COUNTDOWN_BACK_COLOR = 'rgba(22, 25, 33, 0.88)';
 export const CHART_BAR_COUNTDOWN_BORDER_COLOR = 'rgba(139, 146, 165, 0.45)';
-/** The countdown as a label on the price scale (the phone's charts): a quiet plate under the last price's own. */
+/**
+ * The countdown as a label on the price scale (the phone's charts). It reads as one label with the last price
+ * (operator, 2026-11-17, mockup A: the grey plate under the price went unseen): the last candle's own colour, the
+ * price label's white, and exactly one label's height under it so the two touch. The grey is what it falls back to
+ * when the candle's colour cannot be read.
+ */
 export const CHART_BAR_COUNTDOWN_SCALE_BACK_COLOR = '#2A3140';
+export const CHART_BAR_COUNTDOWN_SCALE_TEXT_COLOR = '#FFFFFF';
+/** A scale label's height over its type size in lightweight-charts: the type plus 2.5/12 of it above and below. */
+export const CHART_BAR_COUNTDOWN_SCALE_LABEL_RATIO = 17 / 12;
 
 export const CHART_BAR_COUNTDOWN_PAD_X_PX = 5;
 export const CHART_BAR_COUNTDOWN_HEIGHT_PX = 16;

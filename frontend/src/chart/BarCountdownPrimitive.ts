@@ -5,8 +5,9 @@
  * autoscale on the chart's own paint; the clock only asks for a repaint when
  * the digits change.
  *
- * `onScale` (the phone's charts): the countdown is a label on the price scale instead, directly under the
- * last price's own label, so it never sits on the candles of a chart a few centimetres wide.
+ * `onScale` (the phone's charts): the countdown is a label on the price scale instead, so it never sits on the
+ * candles of a chart a few centimetres wide. It touches the last price's own label from below and takes its
+ * colour, so the two read as one bright label: the price, then the time left (operator, 2026-11-17, mockup A).
  */
 import type { CanvasRenderingTarget2D } from 'fancy-canvas';
 import {
@@ -35,6 +36,8 @@ import {
   CHART_BAR_COUNTDOWN_FONT,
   CHART_BAR_COUNTDOWN_RADIUS_PX,
   CHART_BAR_COUNTDOWN_SCALE_BACK_COLOR,
+  CHART_BAR_COUNTDOWN_SCALE_LABEL_RATIO,
+  CHART_BAR_COUNTDOWN_SCALE_TEXT_COLOR,
   CHART_BAR_COUNTDOWN_TEXT_COLOR,
   CHART_BAR_COUNTDOWN_WARN_COLOR,
 } from './barCountdownConstants';
@@ -151,8 +154,8 @@ export class BarCountdownPaneView implements IPrimitivePaneView {
 }
 
 /**
- * The countdown as a label on the price scale: one label's height under the last price, where the chart's own
- * last-price label sits. The scale keeps labels from covering each other, so it settles just under that one.
+ * The countdown as a label on the price scale: exactly one label's height under the last price, where the chart's
+ * own last-price label sits, in that label's colour (the last candle's) and its white. The two touch and read as one.
  */
 class BarCountdownScaleView implements ISeriesPrimitiveAxisView {
   private readonly _source: BarCountdownPrimitive;
@@ -169,8 +172,8 @@ class BarCountdownScaleView implements ISeriesPrimitiveAxisView {
     if (!last || !countdown) return null;
     const y = series.priceToCoordinate(last.close);
     if (y === null) return null;
-    // A scale label is its type plus its padding tall.
-    const labelHeight = (chart.options().layout.fontSize ?? 12) + 7;
+    // A scale label is its type plus its padding tall: one height down, the two labels touch.
+    const labelHeight = (chart.options().layout.fontSize ?? 12) * CHART_BAR_COUNTDOWN_SCALE_LABEL_RATIO;
     return { y: y + labelHeight, text: countdown.text, warn: countdown.warn };
   }
 
@@ -183,11 +186,12 @@ class BarCountdownScaleView implements ISeriesPrimitiveAxisView {
   }
 
   textColor(): string {
-    return this._now()?.warn ? CHART_BAR_COUNTDOWN_WARN_COLOR : CHART_BAR_COUNTDOWN_TEXT_COLOR;
+    // On the candle's green or red the warning amber cannot be read: the label stays the price label's white.
+    return CHART_BAR_COUNTDOWN_SCALE_TEXT_COLOR;
   }
 
   backColor(): string {
-    return CHART_BAR_COUNTDOWN_SCALE_BACK_COLOR;
+    return this._source.lastBarColor() ?? CHART_BAR_COUNTDOWN_SCALE_BACK_COLOR;
   }
 
   visible(): boolean {
@@ -274,6 +278,21 @@ export class BarCountdownPrimitive implements ISeriesPrimitive<Time> {
   lastBar(): BarCountdownBar | null {
     const row = this._series?.dataByIndex(Number.MAX_SAFE_INTEGER, MismatchDirection.NearestLeft);
     return isCandleRow(row) ? row : null;
+  }
+
+  /**
+   * The newest candle's colour, as the chart draws its last-price label: the bar's own colour when it has one,
+   * else the series' up colour for a close at or over the open, its down colour under it. Null when unreadable.
+   */
+  lastBarColor(): string | null {
+    const row = this._series?.dataByIndex(Number.MAX_SAFE_INTEGER, MismatchDirection.NearestLeft) as
+      { open?: unknown; close?: unknown; color?: unknown } | null | undefined;
+    if (!row) return null;
+    if (typeof row.color === 'string' && row.color) return row.color;
+    if (typeof row.open !== 'number' || typeof row.close !== 'number') return null;
+    const options = this._series?.options() as { upColor?: unknown; downColor?: unknown } | undefined;
+    const color = row.close >= row.open ? options?.upColor : options?.downColor;
+    return typeof color === 'string' && color ? color : null;
   }
 
   countdown(last: BarCountdownBar | null = this.lastBar()): BarCountdown | null {
