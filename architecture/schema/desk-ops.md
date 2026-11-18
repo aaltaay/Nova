@@ -1298,7 +1298,9 @@ read below is one the desk already makes, and every write goes to `/api/phone`
     chart's height, 92 to 172 px), `.dots`.
   - *The small chart* is the desk's chart with no time row, no logo, no
     volume figure on the scale and no position badge (its line stays; the
-    legend says the average). The price and the countdown are its two labels. A tap opens
+    legend says the average). The price and the countdown are its two labels, and on every phone chart they
+    read as one (operator, 2026-11-17, mockup A): the countdown touches the price label from below in the same
+    colour (the last candle's) and white, where a grey plate had gone unseen. A tap opens
     the big chart. The 10-second frame is on here: the tape is open.
 - **The big chart opens upright** (operator, 2026-11-12), from the round icon
   in the corner of the stock page's chart. A phone on its side gets the wide
