@@ -1035,10 +1035,10 @@ subscribe to a quote, and has no order ticket. `nova_historical_chart`, `nova_hi
   after every visible pane has painted.
 - **Engine.** One detached process (`tools/nova_review_engine.py`) owns the loopback listener and the one Chromium.
   The first `nova_chart` call starts it. Later MCP processes attach. Health is
-  `{ok, service: "nova-review", version, renderer_starts, pid, build}`. The version is `"4"`. A mismatch restarts the engine.
+  `{ok, service: "nova-review", version, renderer_starts, pid, build}`. The version is `"5"`. A mismatch restarts the engine.
   `build` is the last build check, `{state, source, build?, built_at?, fingerprint?, detail?}`: `state` is `unchecked`,
   `fresh`, `stale` (an older build is served because building failed or a new one is running), `unavailable` or `override`; `source` is
-  `dist-review`, `frontend/dist`, `none` or `NOVA_REVIEW_DIST`. The field is additive; the version is `"4"` for the open-in-nova routes.
+  `dist-review`, `frontend/dist`, `none` or `NOVA_REVIEW_DIST`. The field is additive; the version became `"4"` for the open-in-nova routes and `"5"` for the desk's IBKR candles on a day without files.
   It exits after 30 minutes idle. Default port is 18765 (`NOVA_REVIEW_PORT`), never 8765. Before it binds, a port
   whose review health check already answers as this engine is left alone. On Windows the socket sets `SO_EXCLUSIVEADDRUSE`
   so a second process cannot share the port. A taken port binds a free one and the link carries loopback `api=`
@@ -1068,12 +1068,27 @@ subscribe to a quote, and has no order ticket. `nova_historical_chart`, `nova_hi
   non-finite OHLC are dropped, so the JSON has no `NaN` (`allow_nan` false). A bad query is HTTP 400 `{ok: false, error}`.
   An unknown path is 404. A reader failure is 500. Success is 200. The engine passes the front-door bar readers
   into that route. CORS allows the configured desk origin and the engine's own origin.
+- **A day the files do not hold (operator, 2026-11-18).** The Massive files end where the download ended, and never
+  hold today. When the front door has no minute file for the day (`LookupError`), the engine's route reads the
+  running desk instead (`tools/nova_review_desk.py`): `GET {NOVA_API_BASE}/api/ticker/{symbol}/bars` for `1Min`,
+  `5Min`, `10Sec` and `1Day` -- IBKR history the desk already holds or fills (store-first, ADR 012), the same candles
+  the desk's charts paint. Only bars that start on the asked Eastern day are kept, and the same causal cut applies.
+  The answer's top-level `source` is `desk-ibkr` (`front-door` otherwise; the page header says which); frame sources
+  are `ibkr-history` (10s, 1m, 5m) and `ibkr-daily` (1d). The desk keeps 10-second bars for its current session only,
+  so an earlier day's 10s frame is empty. The reader waits up to 12 s for a fill the desk has just queued. Nothing is
+  written and nothing is inferred: when the desk has no 1-minute bar of that day, does not answer, or answers with
+  anything but `source: "ibkr"` (a Sim replay), the route is HTTP 404
+  `{ok: false, code: "REVIEW_NO_DATA", error}` with both reasons in `error`. A reader passed in by a test gets no
+  fallback. The page then sets `data-review-ready="error"`, `data-review-error` to the code (`REVIEW_PAGE_ERROR`
+  when the answer named none) and shows the reason; a screenshot stops there and the chart call's preview code is
+  that code, not a timeout.
 - **Causal.** A bar is included only when its window has ended by `as_of` (a 09:55 5-minute bar waits until 10:00).
   The client drops any later bar again before paint. HOD, LOD and premarket high come from the kept 04:00 to 16:00
   minutes. Opening-range high and low stay null until 09:35. Prior high, low and close are the last finite daily row
   strictly before the session. The session day's daily candle is the aggregate of those minutes (the official daily
   row for that day, and any later day, is not used). VWAP is the desk's session VWAP from 04:00. Setups are flat tops
-  of three closed 5-minute bars. `daily_bars` lookback is 183 calendar days. No IBKR call.
+  of three closed 5-minute bars. `daily_bars` lookback is 183 calendar days. The engine makes no IBKR call of its
+  own; a day without files asks the desk (above).
 - **`nova_chart`.** Arguments, and no others (`additionalProperties: false`): `symbols` (1 to 9 tickers, required),
   `date` (`YYYY-MM-DD`, required), `as_of` (`HH:MM` ET, optional, default `16:00`). Any other argument is an MCP error
   whose text starts with `UNKNOWN_ARGUMENT` and names it. Fixed in code: timeframes `10s`, `1m`, `5m`, `1d`; full

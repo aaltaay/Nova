@@ -54,7 +54,18 @@ def _query(path: str) -> dict[str, str]:
     return {key: values[-1] for key, values in found.items() if values}
 
 
-def make_handler(bars_reader, daily_reader, allowed_origins: tuple[str, ...] = ()):
+NO_DATA = "REVIEW_NO_DATA"
+
+
+def default_fallback(bars_reader):
+    """The desk's IBKR candles, only behind the front door itself: a reader passed in (a test) gets none."""
+    if bars_reader is not None:
+        return None
+    import nova_review_desk as review_desk
+    return review_desk.READERS
+
+
+def make_handler(bars_reader, daily_reader, allowed_origins: tuple[str, ...] = (), fallback=None):
     origins = frozenset(allowed_origins)
 
     class Handler(BaseHTTPRequestHandler):
@@ -111,9 +122,14 @@ def make_handler(bars_reader, daily_reader, allowed_origins: tuple[str, ...] = (
                     query.get("as_of"),
                     bars_reader=bars_reader,
                     daily_reader=daily_reader,
+                    fallback=fallback,
                 )
             except ValueError as exc:
                 self._send(400, {"ok": False, "error": str(exc)})
+                return
+            except LookupError as exc:
+                # No source holds the day. The page shows the reason; a screenshot stops on it.
+                self._send(404, {"ok": False, "code": NO_DATA, "error": str(exc)})
                 return
             except Exception as exc:  # maintainer: allow-swallow a bad review read is the HTTP error
                 self._send(500, {"ok": False, "error": f"{type(exc).__name__}: {exc}"})
@@ -150,6 +166,7 @@ def serve(port: int = DEFAULT_PORT, bars_reader=None, daily_reader=None,
         bars_reader or review_load.front_door_bars,
         daily_reader or review_load.front_door_daily,
         allowed_origins,
+        fallback=default_fallback(bars_reader),
     )
     return ReviewHTTPServer(("127.0.0.1", port), handler)
 

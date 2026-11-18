@@ -3,9 +3,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ChartGrid } from '../components/ChartGrid';
 import { ChartFeedProvider } from '../chart';
-import { fetchReview, cutPayload } from './reviewData';
+import { fetchReview, cutPayload, reviewLoadError, type ReviewLoadError } from './reviewData';
 import type { ReviewPayload } from './reviewFixture';
-import { feedFromPayload } from './reviewFeed';
+import { feedFromPayload, REVIEW_ORIGIN_LABELS } from './reviewFeed';
 import { GalleryBoard } from './GalleryBoard';
 import { levelOverlay } from './RecordedLevelsOverlay';
 import { parseReviewQuery, TF_PANE, REVIEW_TFS, type ReviewTf } from './reviewQuery';
@@ -23,9 +23,10 @@ export function ReviewApp() {
   const query = useMemo(() => parseReviewQuery(window.location.search), []);
   const [gtf, setGtf] = useState<ReviewTf>(query.gtf);
   const [payloads, setPayloads] = useState<ReviewPayload[] | null>(null);
-  const [ready, setReady] = useState<'0' | '1' | 'error'>('0');
+  const [ready, setReady] = useState<'0' | '1'>('0');
   const [openNote, setOpenNote] = useState<string | null>(null);
-  const source = query.fixture ? 'fixture' : 'front-door';
+  const [failure, setFailure] = useState<ReviewLoadError | null>(null);
+  const source = query.fixture ? 'fixture' : (payloads?.[0]?.source ?? 'front-door');
   const paintKey = query.gallery ? `${gtf}` : query.symbols.join(',');
   const expected = query.gallery ? query.symbols.length : 4;
   const bucket = useRef({ key: '', ids: new Set<string>() });
@@ -46,12 +47,13 @@ export function ReviewApp() {
     if (!query.symbols.length || !query.date) return;
     let cancel = false;
     setPayloads(null);
+    setFailure(null);
     Promise.all(query.symbols.map((symbol) => loadOne(symbol, query.date, query.asOf, query.fixture, query.api)))
       .then((rows) => {
         if (!cancel) setPayloads(rows.map(cutPayload));
       })
-      .catch(() => {
-        if (!cancel) setReady('error');
+      .catch((reason: unknown) => {
+        if (!cancel) setFailure(reviewLoadError(reason));
       });
     return () => {
       cancel = true;
@@ -87,7 +89,12 @@ export function ReviewApp() {
   const feed = desk ? feedFromPayload(desk) : null;
 
   return (
-    <div className="review-app" data-review-ready={payloads ? ready : '0'} data-review-source={source}>
+    <div
+      className="review-app"
+      data-review-ready={failure ? 'error' : payloads ? ready : '0'}
+      data-review-error={failure ? failure.code : undefined}
+      data-review-source={source}
+    >
       <header className="review-header">
         {query.gallery ? <strong>{title}</strong> : (
           <ReviewSymbolButton
@@ -101,10 +108,13 @@ export function ReviewApp() {
         <span>{query.date}</span>
         {frameLabel && <span>{frameLabel}</span>}
         <span>as of {query.asOf} ET</span>
-        <span>{query.fixture ? 'Fixture' : 'Front door'}</span>
+        <span>{REVIEW_ORIGIN_LABELS[source] ?? source}</span>
         <span className="review-header__note">Read only. No orders.</span>
         {openNote ? <span className="review-open__note" role="status">{openNote}</span> : null}
       </header>
+      {failure ? (
+        <p className="review-error" role="alert">No chart for this day: {failure.message}</p>
+      ) : null}
       {query.gallery
         ? payloads && (
           <GalleryBoard
