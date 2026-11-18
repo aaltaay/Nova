@@ -79,8 +79,10 @@ a handed position (`OWNERS_TRADERS_STOCK`). A retired bot's shares still open at
 - **The brain wakes by itself** (`backend/traders/wake.py`, ADR 072 Amendment 2). On an exchange day
   (`market.is_exchange_day`), from 04:00 ET, Nova turns the brain's switch On once, `by: "schedule"`, at the first
   moment On is not refused and the day's row is untouched (`on: false, at: null`); the check and the write are one
-  step (`switches.turn_on_untouched`). Any press that day sets `at`, so your Off holds until the next exchange
-  day's 04:00 ET. It is said on the brain's stream (`switch_on`). `NOVA_BRAIN_WAKES=0` in `.env` ends the schedule.
+  step (`switches.turn_on_untouched`). Any press that day sets `at` -- an Off pressed while it was already Off
+  too -- so your Off holds until the next exchange day's 04:00 ET. A file Nova cannot read, or of an unknown
+  version, is never woken over or rewritten by the wake: it may hold your Off, and `error` stays on the pill
+  until your next press writes a fresh file. It is said on the brain's stream (`switch_on`). `NOVA_BRAIN_WAKES=0` in `.env` ends the schedule.
   Run by the brain's watcher every `BRAIN_TICK_SEC`. Claude never wakes by itself.
 - **On** is refused `409` with `{reason, error}`: `TRADER_LIVE` (the desk is on Live), `TRADER_DAY_STOP` (the
   trader's day stop was reached today, decision 8), `TRADER_PAST_FLAT_BY` (at or after its flat-by time),

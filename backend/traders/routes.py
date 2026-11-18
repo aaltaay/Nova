@@ -54,4 +54,7 @@ async def put_switch(trader: str, body: SwitchBody,
             brain_session.event("switch_on", "You switched the brain On")
     elif switches.is_on(trader):
         await off.turn_off(trader, "you")
+    else:
+        # Off while already Off is still your word for the day: recorded, so the morning wake leaves it alone.
+        switches.set_switch(trader, False, "you")
     return view.snapshot()

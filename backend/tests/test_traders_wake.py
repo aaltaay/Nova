@@ -63,6 +63,45 @@ def test_a_press_of_yours_before_the_wake_is_the_last_word_that_day(desk) -> Non
     assert not switches.is_on("brain", at("08:33"))
 
 
+def test_an_off_through_the_route_while_already_off_still_holds_that_day(desk, monkeypatch) -> None:
+    import market
+    from fastapi.testclient import TestClient
+    from main import app
+    from tests.bot_helpers import headers
+
+    from agent_trader import clock as agent_clock
+
+    clock = {"at": at("08:00")}
+    monkeypatch.setattr(market, "now_et", lambda: datetime.fromtimestamp(clock["at"], tz=ET))
+    monkeypatch.setattr(agent_clock, "now", lambda: clock["at"])    # Claude's seat reads the same clock
+    monkeypatch.setenv("NOVA_API_KEY", "agent-test-key")
+    monkeypatch.setenv("NOVA_API_HOST", "127.0.0.1")
+    desk["venue"] = "live"                                      # On is refused, so the morning wake has not run
+    assert wake.run_pass() == []
+    got = TestClient(app).put("/api/traders/brain/switch", headers=headers("agent-test-key"), json={"on": False})
+    assert got.status_code == 200 and got.json()["traders"]["brain"]["at"] == at("08:00")
+    desk["venue"] = "paper"
+    clock["at"] = at("09:00")
+    assert wake.run_pass() == [] and not switches.is_on("brain")
+    clock["at"] = at("04:00", "2026-11-16")
+    assert wake.run_pass() == ["brain"]                         # the next trading morning
+
+
+def test_a_switches_file_nova_cannot_read_is_never_woken_over(desk) -> None:
+    import json
+
+    switches.path().parent.mkdir(parents=True, exist_ok=True)
+    saved = json.dumps({"schema_version": 9, "day": "2026-11-13", "switches": {"brain": {"on": False, "at": 1.0}}})
+    for text in (saved, "{torn"):
+        switches.path().write_text(text, "utf-8")
+        assert wake.run_pass(at("04:00")) == []
+        assert switches.turn_on_untouched("brain", "schedule", at("04:00")) is None
+        assert switches.path().read_text("utf-8") == text       # left as it was, its error still on the pill
+        assert switches.current(at("04:01"))[1]
+    switches.set_switch("brain", False, "you", at("04:02"))     # your press writes a fresh file
+    assert switches.current(at("04:03"))[1] is None and wake.run_pass(at("04:03")) == []
+
+
 def test_no_weekend_and_no_holiday_wakes_it(desk) -> None:
     assert wake.run_pass(at("10:00", "2026-11-14")) == []      # Saturday, a fresh desk
     assert wake.run_pass(at("10:00", "2026-11-26")) == []      # Thanksgiving

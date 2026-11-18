@@ -177,13 +177,16 @@ def set_switch(trader: str, on: bool, by: str, now: float | None = None) -> dict
 
 
 def turn_on_untouched(trader: str, by: str, now: float | None = None) -> dict[str, Any] | None:
-    """Turn ``trader`` On only while nobody has set its switch this desk day; None when somebody has. The check
-    and the write are one step under the lock, so a press landing at the same moment is never overwritten."""
+    """Turn ``trader`` On only while nobody has set its switch this desk day; None when somebody has, or when the
+    saved switches cannot be read. The check and the write are one step under the lock, so a press landing at the
+    same moment is never overwritten."""
     t = now_ts() if now is None else float(now)
     current(t)                                              # the day's rollover first
     today = desk_day(t)
     with _lock:
-        doc, _ = _read()
+        doc, error = _read()
+        if error is not None:
+            return None             # a file Nova cannot read may hold your Off: it is never written over by itself
         if doc is None or doc.get("day") != today or not isinstance(doc.get("switches"), dict):
             saved: dict[str, Any] = {}
         else:
