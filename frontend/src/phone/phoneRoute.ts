@@ -11,6 +11,10 @@ export type PhoneRoute =
   | { screen: 'top9' }
   | { screen: 'account' }
   | { screen: 'settings' }
+  /** Search (mockup v1, 2026-11-18): the Scan header's field, with the phone's keyboard up. */
+  | { screen: 'search' }
+  /** Settings > Notifications: what the PC sends this phone, and when. */
+  | { screen: 'notify' }
   | { screen: 'trade'; symbol: string | null }
   | { screen: 'stock'; symbol: string }
   | { screen: 'chart'; symbol: string }
@@ -36,6 +40,8 @@ export function parseRoute(hash: string): PhoneRoute {
     case 'top9':
     case 'account':
     case 'settings':
+    case 'search':
+    case 'notify':
       return { screen: head };
     case 'trade':
       return { screen: 'trade', symbol };
@@ -62,6 +68,9 @@ export function tabOf(route: PhoneRoute): PhoneTab | null {
     case 'account':
     case 'trade':
       return route.screen;
+    // Search is Scan's header field, opened.
+    case 'search':
+      return 'scan';
     // The Level 2 read belongs to the Trade screen it opens from.
     case 'book':
       return 'trade';

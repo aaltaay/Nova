@@ -269,6 +269,61 @@ found stopped: "It needs to get reloaded as a part of the installation. Automati
     backend notice shows only while the page could not be rebuilt or the server could not be started, in plain
     words, and goes away by itself once it is fixed. A dev desk (run from a checkout) does neither.
 
+## Amendment 2026-11-18 -- search, the HOD Momo list, and notifications sent by the PC
+
+**Decided by:** the operator, 2026-11-18: "The mobile app doesn't have search bar to search for stocks at all. We
+need one! Also I want high of the day scanner on there too, and I want it to send me push notifications when
+something is happening ... a setting as well on the mobile app to decide what notifications to have ever open and
+the time so it's not an all-day, every-day notification." Shown a mockup of six screens (kept on the operator's
+disk, `phone-search-alerts` v1) and asked two questions, they chose "Chrome's own push" over the ntfy app, and
+"Build it as drawn" over a magnifier on every header.
+
+38. **Search is Scan's header field.** The word "Scan" becomes a field; a tap opens `#/search` with the phone's
+    keyboard. The matching and its order are the desk's own search, unchanged: the stocks on the desk first, then
+    every listed stock by ticker or company name. Before anything is typed: the recent look-ups, then today's hot
+    list. A row opens the stock page, its chip the Trader, the keyboard's Go the first row in the Trader. The
+    bottom bar is not changed. With the keyboard up, the screen is drawn to fit what is left above it; nothing
+    scrolls and the page is not shrunk.
+39. **HOD Momo and Running Up open under Scan's More.** They are the desk's alert feed (`/ws/hod-momo`), split
+    and folded to one row per stock by the desk's own functions, so a row keeps the place and time of the stock's
+    first alert today and shows its newest numbers. The feed's first frame is the whole day, so it is opened only
+    while one of the two lists is on screen. The phone has no ping: the notification is what tells it.
+40. **The PC sends the notifications.** The phone page cannot: it is closed. `backend/phone_notify/` is handed
+    the desk's own events by the module that owns each (one guarded line in each producer) and decides, by the
+    operator's settings, whether one becomes a notification. It watches and says. It places, changes and cancels
+    nothing, arms nothing, and grants no stock to anyone.
+41. **Chrome's own push (Web Push), not a second app.** The phone's browser gives the page an address at its
+    maker's push service (Google's, for Chrome on Android) and two keys. The PC scrambles each notification for
+    that phone alone (RFC 8291) and posts it to that address over https; the push service carries it and cannot
+    read it. It does learn that this PC sent that phone a message, when, and how long it was. This is the first
+    time the backend talks to a host for the phone: it goes out from the PC, the tunnel is not involved, and
+    nothing is opened inward. A push address is taken only when its host is on a short list of push services.
+42. **The PC's sending key lives in `.env`, and the backend writes it.** A push service wants every message signed
+    by the key the phone subscribed to (RFC 8292). It is a secret, so it is one line of the desk's `.env`
+    (Invariant 3); the backend makes it the first time a phone subscribes, so the operator runs no tool
+    (decision 27's lesson). A line it cannot read is said and never overwritten.
+43. **Everything is off until it is turned on, and the PC keeps the settings.** "Notify this phone" asks Android
+    once and subscribes this phone. Then: HOD Momo for nobody, the operator's stars, or every stock; setups on
+    their stars; a new leader; fills; the loss limit. The days and the hours (New York time) hold back the market
+    kinds; fills and the loss limit come at any time. The settings are the PC's because the PC sends: they hold
+    with the page closed, and a second phone sees the same ones.
+44. **The rules are the desk's toast rules, kept a second time.** Running Up never notifies; one HOD Momo
+    notification per stock per 15 minutes; a setup from armed up, once per stage; a leader once a day (ADR 044's
+    amendment of 2026-10-12). The desk's own gate (`watch_list/toastGate.ts`) runs in the desk window, which a
+    notification must not depend on, so the backend has its own (`phone_notify/gate.py`). Two copies of one
+    intent can drift: a change to which events toast is made in both, and this decision is where that is written.
+45. **A Sim replay never notifies a fill or a loss limit mark.** It is another day's market. HOD Momo alerts,
+    setups and leaders are the live market's whatever venue the desk is on.
+46. **A tap opens the stock on the Trade screen** (the Account screen for the loss limit). Opening Nova still
+    needs the tunnel: a notification arrives without Tailscale, the page behind it does not.
+
+What this does not do, and says so: a notification is not proof the desk is healthy (nothing is sent when Nova or
+the PC is off, and no "Nova stopped" notification exists yet); an alert held back by the quiet period is not sent
+later; the memory of what was sent is the backend process's, so a restart may repeat one inside its 15 minutes.
+iPhone is untested (Safari takes a push only for a page added to the home screen).
+
+**Still not on the phone (#1309):** Volume boost and Setups under Scan's More, starring, drawing.
+
 ## Rules and maps
 
 - Shapes: `architecture/schema/desk-ops.md`, "Who may reach the API" (another device) and "The phone link test".
@@ -284,5 +339,9 @@ found stopped: "It needs to get reloaded as a part of the installation. Automati
 - The venue menu and the Sim strip: `frontend/src/phone/VenueMenu.tsx`, `frontend/src/phone/trade/SimStrip.tsx`;
   the Level 2 marks and the read page: `frontend/src/phone/trade/BookMarks.tsx`,
   `frontend/src/phone/screens/BookScreen.tsx`.
+- Search and the alert lists: `frontend/src/phone/screens/SearchScreen.tsx`, `ScanHod.tsx`, `phoneSearch.ts`,
+  `phoneHod.ts`. Notifications: `backend/phone_notify/`, `frontend/src/phone/notify/`,
+  `frontend/src/phone/screens/NotifyScreen.tsx`, `frontend/public/phone/sw.js`; shapes
+  `architecture/schema/desk-ops.md`, "Notifications to the phone".
 - The Trade screen: `frontend/src/phone/screens/TradeScreen.tsx`, `frontend/src/phone/trade/`; the two seams
   `frontend/src/ibkr/orderDoor.ts` and `frontend/src/utils/deskClock.ts`.

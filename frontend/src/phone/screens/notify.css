@@ -1,0 +1,55 @@
+/* Settings > Notifications (mockup v1, 2026-11-18). The rows are Settings' own, a little shorter. */
+.ph-ntf {
+  flex: 1 1 0;
+  min-height: 0;
+  padding: 4px 12px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.ph-ntf section { display: flex; flex-direction: column; gap: 5px; }
+.ph-ntf .ph-set__row { min-height: 46px; padding: 6px 10px 6px 12px; }
+.ph-ntf .ph-set__words i { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ph-ntf__seg { width: 150px; flex-shrink: 0; }
+.ph-ntf__seg button { min-width: 0; font-size: 11.5px; }
+
+.ph-ntf__days { display: flex; gap: 5px; }
+.ph-ntf__days button {
+  width: 30px;
+  height: 30px;
+  border-radius: 15px;
+  background: var(--ph-soft);
+  color: var(--ph-faint);
+  font-size: 11.5px;
+  font-weight: 700;
+}
+.ph-ntf__days button[aria-pressed='true'] { background: rgba(92, 200, 250, 0.22); color: var(--ph-accent-ink); }
+
+.ph-ntf__hours { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+.ph-ntf__hours > i { font-style: normal; font-size: 11px; color: var(--ph-muted); }
+.ph-ntf__time { display: flex; align-items: center; gap: 4px; }
+.ph-ntf__time button {
+  width: 28px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9px;
+  background: var(--ph-soft);
+  color: var(--ph-dim);
+}
+.ph-ntf__time button:disabled { color: var(--ph-faint); background: rgba(255, 255, 255, 0.03); }
+.ph-ntf__time b { width: 46px; text-align: center; font-family: var(--ph-mono); font-size: 15px; font-weight: 700; }
+
+.ph-ntf__test {
+  height: 38px;
+  flex-shrink: 0;
+  padding: 0 4px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--ph-muted);
+}
+.ph-ntf__test > span { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

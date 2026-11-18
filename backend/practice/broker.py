@@ -50,6 +50,7 @@ from practice import bracket, order_rules
 from practice.fees import for_fill
 from practice.ledger import EVENT_CANCELLED, EVENT_EXPIRED, EVENT_FILLED, Ledger, iso_utc
 from practice.reference import LiveReference, MarketReference, SimReference
+from phone_notify.tell import tell as tell_phone
 from practice.watch import answer_facts, notify_watch, release_commitments
 from sim import fill_model
 
@@ -681,6 +682,7 @@ class PracticeBroker:
         else:
             fees = for_fill(row["side"], float(row["qty"]), fill.price, ts)
             closed = self.ledger.fill(oid, ts=ts, price=fill.price, basis=fill.basis, fees=fees)
+            tell_phone("practice_fill", closed, self.venue)      # the operator's phone (ADR 070); never raises
         self._notify_closed(mark)
         return closed
 

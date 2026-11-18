@@ -1,12 +1,14 @@
 /**
- * Scan (frozen mockup R2-Scanner): the desk's scanner lists, twelve rows to a page.
+ * Scan (frozen mockup R2-Scanner): the desk's scanner lists, twelve rows to a page. The header holds the
+ * search field (mockup v1, 2026-11-18); HOD Momo and Running Up, the desk's alert feed, open under More
+ * (`ScanHod.tsx`).
  *
  * The rows are the desk's own feed (`ScannerDataProvider`), through the desk's exchange filter and
  * its board chips, so the phone and the desk show one board. A list longer than the screen pages
  * with Prev / Next; nothing scrolls. Tap a row for the stock page, the blue chip for the Trader.
  */
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { ChevronDown, ListFilter, Star } from 'lucide-react';
+import { ChevronDown, ListFilter, Search, Star } from 'lucide-react';
 import {
   SCANNER_CHIP_FLOAT_MAX_SHARES,
   SCANNER_CHIP_GAP_MIN_PCT,
@@ -25,9 +27,13 @@ import type { ScannerRow } from '../../types/scanner';
 import { readPref, writePref } from '../../utils/prefStore';
 import { LinkPill, PadlockButton, PhoneScreen, RowLink, TickerChip, VenuePill } from '../PhoneChrome';
 import { compact, pct1, px, rvolShort, toneOf } from '../phoneFormat';
+import type { PhoneHodList } from '../phoneHod';
+import { go } from '../phoneRoute';
 import { usePhoneCatalyst } from '../usePhoneCatalyst';
 import { useRowsThatFit } from '../useRowsThatFit';
+import { ScanHod } from './ScanHod';
 import './scan.css';
+import './search.css';
 
 type ScanListId = BoardListId | 'hot_list' | 'hod_momo' | 'running_up' | 'volume_boost' | 'setups';
 
@@ -49,8 +55,8 @@ const MAIN_LISTS: readonly ScanList[] = [
 const MORE_LISTS: readonly ScanList[] = [
   { id: 'large_cap', name: 'Large Cap' },
   { id: 'hot_list', name: 'Hot list' },
-  { id: 'hod_momo', name: 'HOD Momo', notYet: NEXT_BUILD },
-  { id: 'running_up', name: 'Running Up', notYet: NEXT_BUILD },
+  { id: 'hod_momo', name: 'HOD Momo' },
+  { id: 'running_up', name: 'Running Up' },
   { id: 'volume_boost', name: 'Vol boost', notYet: NEXT_BUILD },
   { id: 'setups', name: 'Setups', notYet: NEXT_BUILD },
 ];
@@ -72,6 +78,11 @@ const CHIP_WORD: Record<ScannerChipId, string> = {
 
 function isBoardList(id: ScanListId): id is BoardListId {
   return BOARD_LISTS.includes(id);
+}
+
+/** The desk's alert feed, not a board: its rows are alerts, drawn by `ScanHod`. */
+function isHodList(id: ScanListId): id is PhoneHodList {
+  return id === 'hod_momo' || id === 'running_up';
 }
 
 function readList(): ScanListId {
@@ -188,8 +199,10 @@ export function ScanScreen() {
       header={(
         <div className="ph-head">
           <VenuePill />
-          <div className="ph-head__title">Scan</div>
-          <div className="ph-grow" />
+          <button type="button" className="ph-search" data-testid="phone-scan-search" aria-label="Search a stock" onClick={() => go({ screen: 'search' })}>
+            <Search size={15} aria-hidden="true" />
+            Search
+          </button>
           <LinkPill live />
           <PadlockButton />
         </div>
@@ -228,6 +241,8 @@ export function ScanScreen() {
         ) : null}
       </div>
 
+      {isHodList(list) ? <ScanHod list={list} nowMs={nowMs} /> : (
+      <>
       <div className="ph-scan__filters">
         <ListFilter size={14} aria-hidden="true" />
         {SCANNER_CHIP_IDS.filter((id) => filters.active.has(id)).map((id) => (
@@ -292,6 +307,8 @@ export function ScanScreen() {
           <button type="button" className="ph-pill-btn" disabled={at >= pages - 1} data-why="This is the last page." onClick={() => setPage(at + 1)}>Next ›</button>
         </div>
       </div>
+      </>
+      )}
     </PhoneScreen>
   );
 }

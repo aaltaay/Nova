@@ -145,3 +145,29 @@
   white-space: nowrap;
 }
 .ph-scan__pager { display: flex; gap: 6px; }
+
+/* ── HOD Momo and Running Up (mockup v1, 2026-11-18): alerts, one row per stock ── */
+.ph-hod { flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; }
+.ph-hod__info {
+  height: 26px;
+  flex-shrink: 0;
+  padding: 0 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 10.5px;
+  color: var(--ph-muted);
+  white-space: nowrap;
+}
+.ph-hod__info > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.ph-hod__notify { flex-shrink: 0; height: 26px; color: var(--ph-muted); font-size: 10.5px; }
+.ph-hod__notify b { font-weight: 600; color: var(--ph-dim); }
+.ph-hod__notify b[data-on='true'] { color: var(--ph-good); }
+.ph-hod .ph-scan__head, .ph-hod .ph-scan__row { grid-template-columns: minmax(0, 1fr) 46px 62px 46px 40px; padding-left: 8px; }
+.ph-hod .ph-scan__head > div:first-child { text-align: left; padding-left: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ph-hod .ph-scan__head > div:nth-child(n + 2) { text-align: right; }
+.ph-hod .ph-scan__head > div:nth-child(2) { padding-right: 5px; }
+.ph-hod .ph-scan__head > div:nth-child(3) { padding-right: 0; }
+.ph-hod__cat b { color: var(--ph-dim); }
+.ph-hod__new { box-shadow: inset 2px 0 0 var(--ph-accent); background: rgba(92, 200, 250, 0.05); }

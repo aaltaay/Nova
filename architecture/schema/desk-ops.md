@@ -1154,8 +1154,8 @@ read below is one the desk already makes, and every write goes to `/api/phone`
   HTTPS). The page sets it before any desk module loads.
 - **Where it is in the page:** the screen is named in the hash, so the phone's
   Back gesture walks the screens: `#/home`, `#/scan`, `#/top9`, `#/account`,
-  `#/settings`, `#/trade[/SYM]`, `#/stock/SYM`, `#/chart/SYM`, `#/book/SYM`. An
-  unknown hash is Home.
+  `#/settings`, `#/search`, `#/notify`, `#/trade[/SYM]`, `#/stock/SYM`,
+  `#/chart/SYM`, `#/book/SYM`. An unknown hash is Home.
 - **The heartbeat:** `GET /api/phone` once a second, with the session header
   when the phone holds one. One answer gives the header its venue, the padlock
   and whether the phone is unlocked, and times the link: the round trip (the
@@ -1191,7 +1191,9 @@ read below is one the desk already makes, and every write goes to `/api/phone`
   |---|---|
   | Every screen | `/api/phone`, `/api/ibkr/status`, `/api/config`, the scanner routes and `/ws/scanner`, `/api/ibkr/account`, `/positions`, `/orders`, `/orders/closed` |
   | Home | `/api/market/board` (the day read), `/api/practice/account`, `/api/loss-limit`, `/api/why?symbols=` (the Catalyst call for the five Gainers rows) |
-  | Scan | the scanner feed; `/api/why?symbols=` per row; `/api/hot-list` (the star, and the Hot list) |
+  | Scan | the scanner feed; `/api/why?symbols=` per row; `/api/hot-list` (the star, and the Hot list). HOD Momo and Running Up (under More): `/ws/hod-momo`, opened only while one of them is on screen, folded to one row per stock by the desk's own `collapseAlertsBySymbol`; on a Sim replay the desk's alert history at the playhead (`useHodMomoReplay`). The line over the list reads `GET /api/phone/notify` |
+  | Search (`#/search`) | `GET /api/symbols/directory` and the scanner feed, matched by the desk's own search (`components/globalBarSearchView`); the recent look-ups are the search's own `nova.search.recent`, on the phone. Tap a row: the stock page; the chip or the keyboard's Go: the Trader. With the keyboard up the screen fits what is left above it (drawn for 360 x 280) instead of shrinking the page |
+  | Notifications (`#/notify`), and the row in Settings that leads to it | `GET /api/phone/notify`; `/api/hot-list` for the leaders rule's N ("Notifications to the phone", below) |
   | Top 9 | the scanner feed; per tile `/api/ticker/{symbol}/bars` (1-minute, store-first) and, on Gainers, `/api/luld/{symbol}/trail` |
   | Account | `/api/practice/account`, `/api/practice/history?range=1D` (Paper and Sim), `/api/loss-limit`; the chart's range buttons read the same route with the desk's `range` (`1D` `5D` `1M` `3M` `YTD` `ALL`); the Calendar view, and one past day's chart opened from it, read `range=ALL` (only while either is open). The calendar's figures are the desk Calendar panel's (`account/accountCalendar`, `account/accountDayBreakdown`); the phone shows Monday to Friday unless a weekend traded that month. Its book pills read All / You / Claude / Brain / Earlier on one row beside the Overview and Calendar icons, the desk's switch (ADR 072, `traders.md`); the day card's "By trader" rows and the month foot's dots split the same way |
   | Stock, big chart | `/ws/ticker/{symbol}` and the chart's bars; `/api/why?symbols=` |
@@ -1356,6 +1358,76 @@ read below is one the desk already makes, and every write goes to `/api/phone`
     Settings).
 - **No scroll:** a viewport under 360 x 720 (740 x 320 for the big chart on its
   side) shrinks the whole page by `min(width / 360, height / 720)`.
+
+## Notifications to the phone (ADR 070, amendment 2026-11-18)
+
+The PC notifies the operator's phone of what they chose, with Nova closed and the phone locked. Owner
+`backend/phone_notify/`. It watches and says; it never trades, arms or grants.
+
+**Routes** (under the phone's door: a read needs nothing, a write needs the PIN's session, `PHONE_LOCKED`
+without it):
+
+| Route | Body | Answers |
+|---|---|---|
+| `GET /api/phone/notify` | | the view below |
+| `POST /api/phone/notify/key` | | the view; makes the PC's sending key when it has none (409 `PHONE_NOTIFY_NO_KEY` with the reason when `.env` cannot be written or its line is not a key) |
+| `PUT /api/phone/notify/settings` | the whole `settings` | the view (422 `PHONE_NOTIFY_BAD_SETTINGS`, nothing changed) |
+| `POST /api/phone/notify/subscribe` | `{endpoint, keys: {p256dh, auth}}` | the view (409 `PHONE_NOTIFY_NO_KEY` before a key exists; 422 `PHONE_NOTIFY_BAD_ADDRESS`) |
+| `POST /api/phone/notify/unsubscribe` | `{endpoint}` | the view |
+| `POST /api/phone/notify/test` | | the view plus `text` (409 `PHONE_NOTIFY_NO_DEVICE`; 502 `PHONE_NOTIFY_SEND_FAILED` with the push service's reason) |
+
+**The view:** `{schema_version: 1, available: true, why_unavailable: null, public_key: string | null,
+settings, device_ids: string[], last_sent: {at, title, ok, error} | null}`. `public_key` is the PC's public
+key (base64url, 65 bytes), null until the first subscribe makes it. `device_ids` holds one id per subscribed
+phone: the first 16 hex of the SHA-256 of its push address, so a phone can tell whether it is on the list
+without the list holding anything it could not already compute. `last_sent` is the newest attempt since the
+backend started (epoch seconds; `error` in words when it did not go).
+
+**Settings:** `{schema_version: 1, hod_momo: "off" | "stars" | "all", setups: bool, new_leader: bool,
+fills: bool, loss_limit: bool, days: int[] (0 Monday to 6 Sunday), start: "HH:MM", end: "HH:MM"}`. The hours
+are New York time, on the hour or the half hour, inside 04:00 to 20:00, the end after the start. Every field
+is required on a write. The default is everything off, Monday to Friday, 07:00 to 16:00 (the desk's toast
+window's own default).
+
+**What is sent** (`phone_notify/gate.py`, pure; every "no" has a reason):
+
+| Kind | Sent when | Hours |
+|---|---|---|
+| HOD Momo | a live alert (`alerts.hooks.notify_hod_alert`: never the snapshot, a replay or a rebuilt Sim day), never Running Up (strategy 12); `stars`: only a stock starred (`how: "star"`) on today's hot list; one per stock per 15 minutes, the ones between held back and not queued | the chosen days and hours |
+| Setup | a line of the live scanner's journal (`source: "live"`, `playing: true`) with event `armed`, `near` or `triggered`, for a starred stock; each stage once per setup id | the chosen days and hours |
+| New leader | a name the hot list's leaders rule just added (`hot_list.service.add_auto`); once per stock per day | the chosen days and hours |
+| Fill | a fill on Paper (`practice.broker`) or Live (`execDetailsEvent`); never Sim; once per fill id | any time |
+| Loss limit | the daily loss limit's warning and its stop (`loss_limit.watch`), on Live and Paper; never Sim | any time |
+
+The memory of what was sent is the trading day's (04:00 New York time) and lives in the process: a backend
+restart forgets it, so a stock may notify again inside its 15 minutes after a restart.
+
+**A notification** is JSON scrambled for one phone (RFC 8291, `aes128gcm`): `{title, body, tag, hash, at}`.
+`hash` is the phone page's route a tap opens (`#/trade/SYM`; `#/account` for the loss limit; `#/notify` for
+a test); `tag` lets a newer one about the same thing replace the older; `at` is epoch seconds. A fact the
+event does not carry is left out. The page's worker (`frontend/public/phone/sw.js`, scope `/phone/`, no fetch
+handler) shows it and, on a tap, tells the open page the hash or opens `/phone.html` + hash.
+
+**Sending** (`phone_notify/sender.py`): one https POST per phone to its push address, with `TTL` (600 s for a
+market alert, 6 hours for a fill or the loss limit), `Urgency: high`, and an RFC 8292 token signed by the
+PC's key, good for 12 hours and for that push service only. A push address is taken only on `https`, port
+443, and a host on the list (`fcm.googleapis.com`, `web.push.apple.com`, `*.push.services.mozilla.com`,
+`*.notify.windows.com`, `*.push.apple.com`). 404 or 410 takes the phone off the list. The sending runs on a
+thread of its own; a producer never waits for it and is never failed by it.
+
+**Kept on the PC:**
+- `phone-notify.json` under the operator cache: `{schema_version: 1, settings, devices: [{id, endpoint,
+  p256dh, auth, added_at}]}`, at most 4 phones. Owner `phone_notify/store.py`. An unknown `schema_version` is
+  refused loud and read as everything off with no phone. It is read once per backend start and kept in
+  memory (a fill asks on every fill); every write goes through the store, so a hand edit waits for a restart.
+- `NOVA_PHONE_PUSH_KEY` in the desk's `.env`: the PC's sending key (the 32-byte P-256 private number,
+  base64url). Owner `phone_notify/vapid.py`, which writes the line the first time a phone subscribes and
+  never overwrites a line it cannot read. `NOVA_PHONE_PUSH_SUBJECT` (optional) replaces the contact a push
+  service is given (`https://nova.altaystudio.com`).
+
+**On the phone:** `#/notify` (Settings > Notifications) shows the view and writes it; "Notify this phone" asks
+Android for permission inside the tap, subscribes with the PC's public key and posts the address. Nothing
+about notifications is kept on the phone but the browser's own subscription.
 
 ## IBKR capacity on the desk (operator ask, 2026-10-16)
 

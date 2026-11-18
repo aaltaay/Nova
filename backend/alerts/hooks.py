@@ -11,6 +11,7 @@ from constants import (
     ALERTS_NOVA_OS_NOTIFY_ACTIONS,
     ALERTS_NOVA_OS_NOTIFY_KINDS,
 )
+from phone_notify.tell import tell as tell_phone
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +30,7 @@ def should_notify_nova_os(receipt: dict) -> bool:
 
 def notify_hod_alert(alert_dict: dict) -> None:
     """Best-effort HOD Momo outbound alert (sync)."""
+    tell_phone("hod_alert", alert_dict)        # the operator's phone (ADR 070): its own settings decide
     try:
         from alerts.dispatch import dispatch_alert
 

@@ -7,6 +7,7 @@
  * request that is not a GET, and names any path it has no answer for.
  */
 import type { Page } from '@playwright/test';
+import { mockPhoneNotify, type NotifyStandIn } from './phoneNotifyApi';
 
 export const PHONE_API = 'http://127.0.0.1:8000';
 export const PHONE_PIN = '246810';
@@ -134,6 +135,8 @@ export interface PhoneApi {
   cancels: string[];
   /** Every Sim playhead move the screen sent through the door, as its body. */
   simMoves: Record<string, unknown>[];
+  /** The notification settings the stand-in keeps, and every write to them (`phoneNotifyApi.ts`). */
+  notify: NotifyStandIn;
   /**
    * `accountDown`: the account, positions and orders reads fail from now on, as when the Gateway or the ledger drops.
    * `held`: your shares of the first symbol; an order that fills moves it, as the ledger would.
@@ -158,6 +161,7 @@ export async function mockPhoneApi(page: Page, opts: PhoneApiOptions = {}): Prom
     orders: [],
     cancels: [],
     simMoves: [],
+    notify: undefined as unknown as NotifyStandIn,
     state: {
       armed: opts.armed ?? false, unlocked: false, working: Array.from({ length: opts.working ?? 1 }, (_, i) => 7 + i), accountDown: false,
       held: opts.held ?? ((opts.positions ?? 2) > 0 ? 500 : 0),
@@ -464,6 +468,11 @@ export async function mockPhoneApi(page: Page, opts: PhoneApiOptions = {}): Prom
       // A LULD pause that began 65 s ago, when a test asks for one.
       halt: api.state.halted ? { halted: true, kind: 'luld', halt_start: Date.now() / 1000 - 65, start_late: false } : null,
     }));
+  });
+  // Registered last, so its paths are answered by it: the notification settings, the directory, the HOD Momo feed.
+  api.notify = await mockPhoneNotify(page, {
+    unlocked: (token) => api.state.unlocked && token === TOKEN,
+    wrote: (line) => api.writes.push(line),
   });
   return api;
 }

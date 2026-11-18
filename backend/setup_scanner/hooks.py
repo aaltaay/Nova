@@ -124,10 +124,13 @@ def default_templates() -> Any:
 
 
 def default_journal(event: dict) -> None:
-    """Every observation to the eyes' journal (ADR 029); it never blocks."""
+    """Every observation to the eyes' journal (ADR 029); it never blocks. The live scanner's lines are also
+    what the operator's phone is notified from (ADR 070): a star's setup arming, nearing its trigger, triggering."""
     from eyes import journal
+    from phone_notify.tell import tell
 
     journal.record(event)
+    tell("setup_line", event)
 
 
 _BOT_STATE_TTL_SEC = 2.0

@@ -4,10 +4,10 @@
 .ph-set {
   flex: 1 1 0;
   min-height: 0;
-  padding: 6px 12px 10px;
+  padding: 2px 12px 8px;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 9px;
 }
 .ph-set section { display: flex; flex-direction: column; gap: 6px; }
 .ph-set__label { padding: 0 4px; display: flex; justify-content: space-between; }
@@ -15,7 +15,7 @@
 
 .ph-set__venues { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
 .ph-set__venues button {
-  height: 54px;
+  height: 48px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -38,7 +38,8 @@
 .ph-set__venues button[data-venue='sim'][aria-pressed='true'] { background: rgba(232, 121, 249, 0.14); border-color: rgba(232, 121, 249, 0.5); color: #F5D0FE; }
 
 .ph-set__rows { display: flex; flex-direction: column; }
-.ph-set__row { min-height: 52px; padding: 8px 10px 8px 12px; display: flex; align-items: center; gap: 10px; }
+/* Shorter than the frozen 52px since the Notifications row joined (mockup v1, 2026-11-18): the screen still fits. */
+.ph-set__row { min-height: 46px; padding: 5px 10px 5px 12px; display: flex; align-items: center; gap: 10px; }
 .ph-set__row + .ph-set__row { border-top: 1px solid var(--ph-hair); }
 .ph-set__icon {
   width: 30px;
@@ -56,6 +57,10 @@
 .ph-set__words b { font-size: 13px; font-weight: 600; }
 .ph-set__words i { font-style: normal; font-size: 11px; color: var(--ph-muted); }
 .ph-set__btn { height: 30px; flex-shrink: 0; padding: 0 14px; font-size: 12px; }
+/* A row that is a door to another screen (Notifications). */
+.ph-set__door { width: 100%; text-align: left; }
+.ph-set__door .ph-set__words i { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ph-set__go { flex-shrink: 0; display: flex; align-items: center; gap: 4px; color: var(--ph-muted); font-size: 12px; font-weight: 600; }
 
 .ph-set__switch { width: 46px; height: 30px; flex-shrink: 0; padding: 2px 0; }
 .ph-set__switch > span {

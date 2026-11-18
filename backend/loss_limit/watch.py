@@ -36,6 +36,7 @@ from constants_loss_limit import (
 )
 from loss_limit import accounts, settings, state
 from loss_limit.count import Count
+from phone_notify.tell import tell as tell_phone
 
 logger = logging.getLogger(__name__)
 
@@ -105,12 +106,15 @@ async def check(account: str, count: Count, now: float) -> None:
         trip_past = loss is not None and loss >= limit
         if _held_for((account, line, "warn"), warn_past, now) and current["warn"] and not row.get("warned_at"):
             state.write(account, {"warned_at": now, "warned_loss": round(loss, 2), "limit_usd": limit}, now, line=line)
+            tell_phone("loss_limit_mark", account=account, line=line, mark="warned", loss=loss, limit=limit)
         auto_sell = bool(current["auto_sell"])
         if _held_for((account, line, "trip"), trip_past, now) and not row.get("tripped_at"):
             fields: dict[str, Any] = {"tripped_at": now, "tripped_loss": round(loss, 2), "limit_usd": limit}
             if auto_sell:
                 fields["sell"] = "pending"           # saved before any order goes out: a restart resumes it
             state.write(account, fields, now, line=line)
+            tell_phone("loss_limit_mark", account=account, line=line, mark="tripped", loss=loss, limit=limit,
+                       auto_sell=auto_sell)
             logger.warning("LOSS LIMIT: the %s line on %s is down %.2f against its %s limit -- tripped%s", line,
                            account, loss, limit, ", Auto sell closes what it opened today" if auto_sell else "")
             if auto_sell and not sold:

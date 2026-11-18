@@ -320,6 +320,36 @@ export class PhoneDoor {
     return { ...answer, clock };
   }
 
+  /**
+   * The phone's notification settings as the PC keeps them (amendment 2026-11-18). `http` 404 is a backend
+   * from before notifications; null when nothing answered.
+   */
+  async notifyRead(): Promise<{ http: number | null; body: unknown }> {
+    try {
+      const res = await this.call('GET', '/api/phone/notify');
+      return { http: res.status, body: res.body };
+    } catch {
+      return { http: null, body: null };
+    }
+  }
+
+  /**
+   * One write to the notification settings: `settings` (PUT, the whole settings), `key` (make the PC's
+   * sending key when it has none), `subscribe` and `unsubscribe` (this phone's push address), `test`
+   * (send one now). `view` is the PC's answer, the
+   * settings as they now stand, for the screen to show at once.
+   */
+  async notifyWrite(
+    what: 'settings' | 'key' | 'subscribe' | 'unsubscribe' | 'test', body: unknown, done: (b: Record<string, unknown>) => string,
+  ): Promise<Answer & { view: unknown }> {
+    let view: unknown = null;
+    const answer = await this.ask(what === 'settings' ? 'PUT' : 'POST', `/api/phone/notify/${what}`, body, (b) => {
+      view = b;
+      return done(b);
+    });
+    return { ...answer, view };
+  }
+
   /** Cancel every working order on one stock, on the venue the tap was on (`venue`). */
   cancelSymbol(symbol: string, venue?: string | null): Promise<Answer> {
     return this.ask('DELETE', `/api/phone/orders?symbol=${encodeURIComponent(symbol)}${venueQuery(venue, '&')}`, undefined, (b) => {
