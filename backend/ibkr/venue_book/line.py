@@ -223,6 +223,12 @@ def close(reason: str = "") -> None:
 
 def _let_go(line: _Line) -> str:
     """Cancel, forget or hold ``line``'s request; what was done. Caller holds the lock."""
+    from ibkr import client as _client
+
+    if not _client.is_ready():
+        # IBKR's connection is lost or degraded (the generation moves only at the next READY): nothing is sent or
+        # dropped now, so the request stays tracked and is decided at READY, as ``depth.release`` does.
+        return _hold(line, "held until IBKR is READY")
     if line_session.is_stale(line.generation):
         fate = _fate(line)
         if fate == WAIT:

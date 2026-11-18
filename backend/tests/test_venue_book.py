@@ -219,6 +219,30 @@ def test_a_cancel_that_cannot_be_sent_leaves_the_request_held_and_is_sent_again(
     assert _cancels(ib) == [("cancel", req, False)] and venue_book.held() == []
 
 
+def test_nothing_is_cancelled_while_ibkr_is_not_ready_even_when_the_answer_arrives_then(ib):
+    """A degraded session keeps its generation until the next READY: the readiness itself is asked."""
+    req = _open(ib, granted=False)
+    asyncio.run(venue_book.follow(None))
+    assert venue_book.held() == ["CUE"]
+    ib.desk["ready"] = False                                                         # degraded: same socket, same generation
+    with _Read(ib):
+        _rows(ib, req, [(4.03, 255.0, "NSDQ")], BID)                                 # the grant arrives during the outage
+    assert _cancels(ib) == [] and venue_book.held() == ["CUE"], "the request stays tracked"
+    assert ib.wrapper.subscriptions.find_market_data(CON_ID, line.KIND) is not None
+    asyncio.run(venue_book.follow(None))
+    assert _cancels(ib) == [] and venue_book.held() == ["CUE"]
+    ib.desk["ready"] = True                                                          # READY again: decided now
+    asyncio.run(venue_book.follow(None))
+    assert _cancels(ib) == [("cancel", req, False)] and venue_book.held() == []
+    second = _open(ib, "MPU")                                                        # and a granted line let go while not ready
+    ib.desk["ready"] = False
+    asyncio.run(venue_book.follow(None))
+    assert len(_cancels(ib)) == 1 and venue_book.held() == ["MPU"]
+    ib.desk["ready"] = True
+    asyncio.run(venue_book.follow(None))
+    assert _cancels(ib)[-1] == ("cancel", second, False) and venue_book.held() == []
+
+
 def test_the_book_moves_with_the_brain_and_gives_its_line_back(ib):
     first = _open(ib, "CUE")
     second = _open(ib, "MPU")                                                        # the brain's lane moved
