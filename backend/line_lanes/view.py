@@ -22,6 +22,17 @@ def _lane(owner: str, recorded: set[str]) -> dict[str, Any]:
             "recording": bool(sym) and sym in recorded, "error": lanes.error(sym) if sym else None}
 
 
+def _nasdaq_book() -> dict[str, Any] | None:
+    """The brain's Nasdaq book: ``{venue, symbol, up, rows, seq, at, error}`` (``ibkr.venue_book.status``)."""
+    try:
+        from ibkr import venue_book
+
+        return venue_book.status()
+    except Exception:
+        logger.exception("LANES: the brain's Nasdaq book could not be read")
+        return None
+
+
 def _tape_capacity() -> dict[str, Any] | None:
     try:
         from ibkr import tape_admission
@@ -43,7 +54,7 @@ def view(now: float | None = None) -> dict[str, Any]:
         "generated_at": ts,
         "you": _lane(YOU, recorded),
         "claude": _lane(CLAUDE, recorded),
-        "brain": {**_lane(BRAIN, recorded), "why": brain.why()},
+        "brain": {**_lane(BRAIN, recorded), "why": brain.why(), "nasdaq_book": _nasdaq_book()},
         "tape_capacity": _tape_capacity(),
         "recording_error": rec["last_error"],
     }

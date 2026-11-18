@@ -411,6 +411,23 @@ recordings are hurting me more than helping me".
   (`POST /api/brain/watch {symbol, why}`, `bot.md` "The brain's door") and empty until it names one, whether its
   switch is On or Off. No one else uses it; there is no rate limit and no minimum hold. The bots' setup picker
   (`bots.py`, `bots_pick.py`, `LANES_BOTS_TICK_SEC`) is gone.
+- **The brain's Nasdaq book** (ADR 072 Amendment 5; `backend/ibkr/venue_book/`). While the brain's lane is on a
+  stock and a Level 2 line is free, Nova also holds that stock's book on Nasdaq itself: `Stock(sym, "NASDAQ")`,
+  `isSmartDepth=False`, `IBKR_VENUE_BOOK_ROWS` (20) rows a side, rebuilt from IBKR's row operations. It is a book
+  of its own, kept apart from the lane's all-exchange Level 2: `ibkr.depth`, the Level 2 pane, Paper fills, the
+  book watcher, a print's side, the view gate and the recordings never read it. A lane's own line comes first: with
+  three different stocks on the lanes it waits (`error` says so), and it ends before a lane's line is asked for; a
+  refusal by IBKR is asked again after `IBKR_VENUE_BOOK_RETRY_SEC` (15 s). On a replaying desk there is none.
+  - `brain.nasdaq_book` on `GET /api/ibkr/lanes`: `{venue: "NASDAQ", symbol: string | null, up: boolean, rows:
+    boolean, seq: number, at: number | null, error: string | null}` (`symbol`: the brain's stock; `up`: asked on
+    this IBKR session; `rows`: a book with a row has arrived; `error`: why it is not up, in words).
+  - `WS /ws/ibkr/venue-book/{symbol}` only joins: it opens nothing, moves no lane and ends nothing. Frames:
+    `{type: "subscribed", symbol, venue}`; `{type: "book", symbol, venue, data: {bids: Row[], asks: Row[]}, seq, at,
+    sent}` for every changed book, a viewer that falls behind getting the newest; `{type: "waiting", symbol, venue,
+    message}` each `MARKET_VIEW_BEAT_SEC` while the book is not up; `{type: "closed", symbol, venue, reason}` when
+    the line ends (the socket stays open). `Row = {price, size, side: "bid" | "ask", mm}`, best price first, as
+    IBKR holds the rows: `mm` is `NSDQ` or empty for the book's own orders, else the market maker quoting there, so
+    a price level is its rows summed.
 - **A line ends only when no lane is on its stock**, at once: no linger, no grace. Every socket still on it gets one
   frame and is closed: depth `{type: "error", symbol, message, evicted: true, lane: Lanes}`, tape
   `{type: "lane", symbol, message, lane: Lanes}`. A socket opened with `front=0` on a stock no lane is on gets the
@@ -423,7 +440,7 @@ recordings are hurting me more than helping me".
 - **IBKR's 15 seconds:** a tape Nova cancelled may not be asked for again for `IBKR_TAPE_RESUBSCRIBE_GUARD_SEC` (16 s)
   after the cancel, unchanged until decision 10's measurement.
 - **On the wire.** `GET /api/ibkr/lanes` and `/api/ibkr/status` `lanes`: `{schema_version: 2, you: Lane, claude:
-  Lane, brain: Lane & {why: string | null}, tape_capacity}` where `Lane = {symbol: string | null, since: number |
+  Lane, brain: Lane & {why: string | null, nasdaq_book: NasdaqBook | null}, tape_capacity}` (`nasdaq_book`: above) where `Lane = {symbol: string | null, since: number |
   null, depth: boolean, tape: boolean, recording: boolean, error: string | null}` (`depth` / `tape`: the line is up;
   `recording`: Nova records it, `recording-and-replay.md`; `why`: the brain's own words for naming the stock).
   Version 1 carried the lane as `bots` with the setup picker's fields. `GET /api/ibkr/capacity` names a line's
