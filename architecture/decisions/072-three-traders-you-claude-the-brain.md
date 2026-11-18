@@ -308,6 +308,30 @@ word, and Invariant #7 and this ADR are changed before any code:
 5. **Not decided:** what turning the brain On for Live does to a trade it still holds on Paper. Proposed: the
    Paper trade runs to its own exits on Paper, and the brain starts flat on Live.
 
+## Amendment 5 (2026-11-18): the brain's lane also reads Nasdaq's own book
+
+The brain was trained on one exchange's own order book. The Level 2 every lane holds is IBKR's mix of every
+exchange, ten rows a side; on the brain's stocks of 2026-11-18 Nasdaq had about one of those rows a side, so the
+book the brain needs cannot be read off it. Shown a mockup of what the Level 2 pane on the brain's stock could
+show, the operator, 2026-11-18: "i can tell where the brain is from the header, why do we need this?" So nothing
+on the screen changes.
+
+- **One more line, the brain's alone.** While the brain's lane is on a stock, Nova also asks IBKR for that stock's
+  book on Nasdaq itself (`Stock(sym, "NASDAQ")`, `isSmartDepth=False`, 20 rows a side; `backend/ibkr/venue_book/`).
+  Three read-only tests on the Gateway, each with the operator's yes (2026-11-18): the rows arrive in price order
+  and never crossed; IBKR serves it beside the all-exchange line of the same stock, which keeps running; it works
+  for a stock listed on AMEX.
+- **It is a book of its own.** Nothing that reads the all-exchange book reads it: your Level 2 pane, Paper fills,
+  the book watcher, a print's side, the view gate and the recordings are unchanged, and the brain's lane keeps its
+  all-exchange Level 2 and Time & Sales as decision 10 says. The frame "The brain's line · you share it" stays true.
+- **A lane's own line comes first.** IBKR gives three Level 2 lines. The Nasdaq book takes one only while one is
+  free: with three different stocks on the three lanes there is none, the book waits and says so
+  (`nasdaq_book.error`), and it ends before a lane's own line is asked for. It never costs you or Claude a line.
+- **Where it is read.** `GET /api/ibkr/lanes` `brain.nasdaq_book`, and `WS /ws/ibkr/venue-book/{symbol}`, which only
+  joins (`market-data.md` "The brain's Nasdaq book"). No pane shows it.
+- **Not decided here:** the brain deciding anything from this book. It stays watch-only until a version trained on
+  the desk's own inputs passes its bar.
+
 ## Consequences
 
 - Each trader's record is its own, and a takeover never moves P&L between records.

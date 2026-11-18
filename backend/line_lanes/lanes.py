@@ -8,6 +8,10 @@ maintainer: one-concern which stock each lane is on, and the lines that follow i
 stock two lanes are on is one pair of lines (``table.put``). The lane holds one viewer reference on each of its
 stock's lines, so a socket, a Record or the seat letting go never ends it: only a lane leaving does.
 
+The brain's lane has one more line, Nasdaq's own book of its stock (``ibkr.venue_book``, ADR 072 Amendment 5). It
+follows the brain's lane only while a Level 2 line is free -- three distinct stocks on the lanes leave none --
+and ends before a lane's own line is asked for.
+
 ``refusal`` is the gate: ``ibkr.depth.subscribe_async`` and ``ibkr.tape_stream.subscribe_async`` open a live line
 only for a stock a lane is on. ``ensure`` asks again for a lane's line that is down (IBKR ended it, a reconnect, a
 refusal); IBKR's 15 s rule on a tape is the tape module's own guard.
@@ -142,8 +146,10 @@ async def put(owner: str, symbol: str | None) -> Move:
             _since.pop(owner, None)
         for sym in move.close:
             _end(sym)
+        _venue_yield()                             # the brain's Nasdaq book never holds the line a lane is about to need
         for sym in move.open:
             await _ask(sym)
+        await _follow_venue()
         logger.info("LANES: %s's lane %s -> %s (lines ended %s, opened %s)", owner, before.on(owner),
                     after.on(owner), list(move.close) or "none", list(move.open) or "none")
     if move or after != before:
@@ -163,6 +169,7 @@ async def ensure() -> dict[str, str]:
             refs = _refs.get(sym) or {}
             if not (up[DEPTH] and up[TAPE] and refs.get(DEPTH) and refs.get(TAPE)):
                 await _ask(sym)
+        await _follow_venue()
     return dict(_errors)
 
 
@@ -223,6 +230,35 @@ def _end(sym: str) -> None:
         tape_line.drop_line(sym, "no lane is on it")
     except Exception:
         logger.exception("LANES: could not end %s's Time & Sales line", sym)
+
+
+def venue_room() -> bool:
+    """Whether a Level 2 line is free for the brain's Nasdaq book: every lane's own line comes first."""
+    from constants_ibkr import IBKR_MAX_DEPTH_SYMBOLS
+
+    return len(_lanes.stocks()) < IBKR_MAX_DEPTH_SYMBOLS
+
+
+def _venue_yield() -> None:
+    """End the brain's Nasdaq book if its lane left the stock, or the lanes now need every Level 2 line."""
+    try:
+        from ibkr import venue_book
+
+        on = venue_book.symbol()
+        if on is not None and (on != _lanes.brain or not venue_room()):
+            venue_book.close("the brain's lane left it" if on != _lanes.brain else "a lane needs its Level 2 line")
+    except Exception:
+        logger.exception("LANES: could not end the brain's Nasdaq book")
+
+
+async def _follow_venue() -> None:
+    """The brain's Nasdaq book follows its lane while a Level 2 line is free (ADR 072 Amendment 5)."""
+    try:
+        from ibkr import venue_book
+
+        await venue_book.follow(_lanes.brain, room=venue_room())
+    except Exception:
+        logger.exception("LANES: the brain's Nasdaq book could not follow its lane")
 
 
 def _start_snapshots(sym: str) -> None:

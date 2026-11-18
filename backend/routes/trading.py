@@ -379,6 +379,14 @@ async def ws_depth(websocket: WebSocket, symbol: str) -> None:
 
 # ── Time & Sales WebSocket ─────────────────────────────────────────────────────
 
+@ws_router.websocket("/ws/ibkr/venue-book/{symbol}")
+async def ws_venue_book(websocket: WebSocket, symbol: str) -> None:
+    """Stream the brain's Nasdaq book (ADR 072 Amendment 5); the handler lives in ``routes.venue_book_ws``."""
+    from routes.venue_book_ws import run_ws_venue_book
+
+    await run_ws_venue_book(websocket, symbol)
+
+
 @ws_router.websocket("/ws/ibkr/tape/{symbol}")
 async def ws_tape(websocket: WebSocket, symbol: str) -> None:
     """Stream Time & Sales prints. Sim injects the same viewer queues."""
