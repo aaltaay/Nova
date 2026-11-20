@@ -11,6 +11,8 @@ import { mockPhoneNotify, type NotifyStandIn } from './phoneNotifyApi';
 
 export const PHONE_API = 'http://127.0.0.1:8000';
 export const PHONE_PIN = '246810';
+/** The stand-in desk's Live PIN: the PC's, never the phone's (ADR 070 amendment 2026-11-20). Sample data. */
+export const PHONE_LIVE_PIN = '135790';
 const TOKEN = 'sample-session-token';
 
 const ET_DATE = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York' });
@@ -105,6 +107,8 @@ export interface PhoneApiOptions {
   effects?: string[];
   /** The Sim clock the desk answers on Sim (merged over the live edge on today's date). */
   simClock?: Record<string, unknown>;
+  /** The desk's Live share limit (`/api/ibkr/status` `qty_cap`): 1 by default, as the desk's; null is no limit. */
+  liveCap?: number | null;
 }
 
 /** One order as the Trade screen sent it to `POST /api/phone/order`. */
@@ -118,6 +122,8 @@ export interface SentOrder {
   reference_price?: number | null;
   outside_rth?: boolean;
   intent?: string | null;
+  /** The venue the tap was on: the door refuses it when the desk moved since. */
+  venue?: string;
   view?: { instance?: string | null; book?: { seq: number; bid: number | null; ask: number | null } | null; action_wall_ms?: number };
   client_timing?: Record<string, number>;
 }
@@ -175,12 +181,13 @@ export async function mockPhoneApi(page: Page, opts: PhoneApiOptions = {}): Prom
     ...opts.simClock,
   };
   const clockNow = () => ({ sim: venue === 'sim', ...simClock });
+  const liveCap = opts.liveCap === undefined ? 1 : opts.liveCap;
   const pinSet = opts.pinSet ?? true;
   const nowSec = () => Date.now() / 1000;
   const status = (token: string | null) => ({
     schema_version: 1, pin_set: pinSet, unlocked: api.state.unlocked && token === TOKEN,
     expires_at: api.state.unlocked && token === TOKEN ? nowSec() + 7 * 3600 + 12 * 60 : null,
-    venue, paper: venue === 'paper', trades: venue !== 'live', armed: api.state.armed, now: nowSec(),
+    venue, paper: venue === 'paper', trades: true, armed: api.state.armed, arm_requires_pin: venue === 'live', now: nowSec(),
   });
   // The other holders (ADR 072), one per stock after the first: Claude's, then the brain's handed to you (switched
   // off, yours to close), then a retired bot's (Earlier bots, handed too).
@@ -259,7 +266,13 @@ export async function mockPhoneApi(page: Page, opts: PhoneApiOptions = {}): Prom
         return json(clockNow());
       }
       if (path === '/api/phone/arm') {
-        api.state.armed = (req.postDataJSON() as { armed?: boolean } | null)?.armed === true;
+        const body = (req.postDataJSON() ?? {}) as { armed?: boolean; pin?: string };
+        // On Live the padlock is the desk's own rule: the Live PIN, never the phone's (arm_pin.py's words).
+        if (body.armed === true && venue === 'live') {
+          if (!body.pin) return refuse(403, 'ARM_PIN_REQUIRED', 'Live needs your PIN to unlock');
+          if (body.pin !== PHONE_LIVE_PIN) return refuse(403, 'ARM_PIN_INVALID', 'Wrong PIN');
+        }
+        api.state.armed = body.armed === true;
         return json(status(token));
       }
       if (path === '/api/phone/order' && method === 'POST') {
@@ -272,8 +285,10 @@ export async function mockPhoneApi(page: Page, opts: PhoneApiOptions = {}): Prom
         nextOrderId += 1;
         const rests = body.order_type === 'STP' || (body.order_type === 'LMT' && body.side === 'SELL' && (body.limit_price ?? 0) >= ASK)
           || (body.order_type === 'LMT' && body.side === 'BUY' && (body.limit_price ?? 0) < ASK);
+        // On Live the door cuts every order but a Flatten to the desk's limit, as qty_gate does.
+        const sent = venue === 'live' && body.intent !== 'flatten' && liveCap != null ? Math.min(body.qty, liveCap) : body.qty;
         if (rests) api.state.working = [...api.state.working, nextOrderId];
-        else api.state.held += body.side === 'BUY' ? body.qty : -body.qty;
+        else api.state.held += body.side === 'BUY' ? sent : -sent;
         return json({ ok: true, order_id: nextOrderId, broker_status: rests ? 'Submitted' : 'Filled' });
       }
       if (path === '/api/phone/orders' && method === 'DELETE') {
@@ -306,6 +321,7 @@ export async function mockPhoneApi(page: Page, opts: PhoneApiOptions = {}): Prom
       case '/api/ibkr/status': return json({
         connected: true, transport_connected: true, session: 'ready', mode: venue, venue, armed: api.state.armed,
         spend_status: api.state.armed ? `${venue}_armed` : 'locked_disarmed', arm_requires_pin: venue === 'live',
+        live_arm_pin_set: true, qty_cap: venue === 'live' ? liveCap : null,
         gateway_mode: 'live', broker_account_kind: 'live', trading_allowed: true,
       });
       case '/api/gappers': return json(envelope(t, { gappers: rows(34, t) }));

@@ -51,6 +51,8 @@ export interface PhoneTrade {
   linkQuiet: boolean;
   /** The padlock: false while locked. Null before the desk has said. */
   armed: boolean | null;
+  /** The desk's share limit on its venue (`/api/ibkr/status` `qty_cap`): Live's, null on Paper and Sim. */
+  qtyCap: number | null;
   /** Run one of the desk's one-tap actions. `how: 'done'` for a cancel. */
   act: (label: string, action: NovaActionRecord, how?: 'sent' | 'done') => void;
   /** Send the ticket's own order. */
@@ -173,6 +175,7 @@ export function usePhoneTrade(symbol: string): PhoneTrade {
     lag,
     linkQuiet: depth.quietSince != null || tape.quietSince != null,
     armed: session.armed,
+    qtyCap: status.qty_cap ?? null,
     act,
     place,
   };

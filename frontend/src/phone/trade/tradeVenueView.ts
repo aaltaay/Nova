@@ -1,10 +1,10 @@
 /**
- * What the Trade screen draws on each venue (ADR 070 amendment 2026-11-13). Pure, so it is tested without a
- * screen. Every rule here is the desk's (`sim/simReplayTarget`, the Trader's Sim rail): the phone adds only
- * what it cannot draw yet -- a replay from the Massive files -- and says so instead of drawing something else.
+ * What the Trade screen draws on each venue (ADR 070 amendments 2026-11-13 and 2026-11-20). Pure, so it is tested
+ * without a screen. Every rule here is the desk's (`sim/simReplayTarget`, the Trader's Sim rail): the phone adds
+ * only what it cannot draw yet -- a replay from the Massive files -- and says so instead of drawing something else.
  *
- * - Paper: the live book, tape and quote; the ticket trades.
- * - Live: the same live screen to look at; the ticket sends nothing from the phone.
+ * - Paper and Live: the live book, tape and quote; the ticket trades (Live once the Live PIN opens the padlock,
+ *   and the ticket says Live on every button: `liveTicket.ts`).
  * - Sim at the live edge: live, as Paper (the desk's live-edge rule); the ticket trades the Sim.
  * - Sim replaying a Session Record of this stock: the same sockets serve the recording, the quote is the
  *   recording's at the playhead, and a gap in the recording is said as a gap.
@@ -14,7 +14,6 @@
 import { simRailNote, simReplayTarget, type SimClockState } from '../../sim';
 import type { Venue } from '../PhoneSession';
 
-export const LIVE_LOOK_ONLY = 'From the phone, Live is look only. Send Live orders from the PC.';
 /** The desk's own words for a gap in a Session Record (the Trader's capture-gap watch). */
 export const CAPTURE_GAP = 'The playhead is between recorded stretches: nothing was recorded here.';
 
@@ -38,8 +37,7 @@ export interface TradeVenueView {
 const LIVE: TradeVenueView = { feedKey: 'live', quote: 'live', note: null, gap: false, blocked: null };
 
 export function tradeVenueView(symbol: string, venue: Venue | null, clock: SimClockState | null, sim: boolean): TradeVenueView {
-  if (venue === 'live') return { ...LIVE, blocked: { why: LIVE_LOOK_ONLY, word: 'Live · look only' } };
-  if (!sim) return LIVE;
+  if (venue === 'live' || !sim) return LIVE;
   if (clock?.live_edge === true) return { ...LIVE, feedKey: 'live-edge' };
   const target = simReplayTarget(symbol, clock, sim);
   if (target.kind === 'ok' && clock?.replay_source === 'historical') {

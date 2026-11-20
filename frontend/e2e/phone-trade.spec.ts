@@ -1,6 +1,6 @@
 import { test, expect, type Locator, type Page } from '@playwright/test';
 import { attachErrorCollector } from './helpers/errorCollector';
-import { PHONE_PIN, mockPhoneApi, phoneOverflow, type PhoneApi } from './helpers/phoneApi';
+import { PHONE_LIVE_PIN, PHONE_PIN, mockPhoneApi, phoneOverflow, type PhoneApi } from './helpers/phoneApi';
 
 // The phone's Trade screen (ADR 070, amendment 2026-11-12) against a stand-in API. Nothing here reaches a real
 // backend: every order below is one the stand-in records.
@@ -269,18 +269,71 @@ test('a buy that covers a short opened on the desk is never held for lag', async
   expect(api.orders[0]).toMatchObject({ side: 'BUY', qty: 100, order_type: 'MKT' });
 });
 
-test('on Live the ticket is drawn and locked, and says Live is look only from the phone', async ({ page }) => {
+test("on Live every button says LIVE and what the desk's limit lets through, and an order names Live", async ({ page }) => {
+  const { errors } = attachErrorCollector(page);
   const api = await mockPhoneApi(page, { venue: 'live', armed: true });
   await openTrade(page);
-  await expect(page.getByTestId('phone-live-band')).toContainText('look only from the phone');
+  await expect(page.getByTestId('phone-screen-trade')).toHaveAttribute('data-live', 'true');
+  await expect(page.getByTestId('phone-live-band')).toContainText('LIVE · REAL MONEY');
   const buy = page.getByTestId('phone-buy-market');
-  await expect(buy).toBeDisabled();
-  await expect(buy).toHaveAttribute('data-why', /Live is look only/);
-  await expect(buy).toContainText('Live · look only');
-  await expect(page.getByTestId('phone-sell-100-bid')).toBeDisabled();
-  await expect(page.getByTestId('phone-cancel-all')).toBeDisabled();
+  await expect(buy).toBeEnabled();
+  await expect(buy).toContainText('LIVE BUY 1');
+  await expect(page.getByTestId('phone-buy-limit')).toContainText('LIVE BUY 1');
+  await expect(page.getByTestId('phone-live-limit')).toHaveText('Live limit: 1 share. Raise it on the desk.');
+  // You hold 500: the desk cuts a Live sell to its limit, and the button says the share that goes.
+  await expect(page.getByTestId('phone-sell-100-bid')).toContainText('LIVE SELL 1');
+  await expect(page.getByTestId('phone-sell-50-ask')).toContainText('LIVE SELL 1');
+  await expect(page.getByTestId('phone-sell-50-ask')).not.toContainText('½');
+  await expect(page.getByTestId('phone-cancel-all')).toBeEnabled();
   expect(await phoneOverflow(page)).toEqual([]);
   expect(api.writes).toEqual([]);
+
+  await unlockWithATap(page, buy, api);
+  await buy.click();
+  await expect.poll(() => api.orders.length).toBe(1);
+  expect(api.orders[0]).toMatchObject({ side: 'BUY', qty: 1, order_type: 'MKT', venue: 'live' });
+  await expect(page.getByTestId('phone-banner')).toContainText('Sent · Buy 1 market');
+
+  // Custom stops at the limit and says why.
+  await page.getByRole('button', { name: 'Custom', exact: true }).first().click();
+  await expect(page.getByTestId('phone-send')).toContainText('LIVE · Buy 1 · Limit 4.87');
+  const up = page.getByRole('button', { name: 'Quantity up' });
+  await expect(up).toBeDisabled();
+  await expect(up).toHaveAttribute('data-why', 'Live limit: 1 share. Raise it on the desk.');
+  expect(await phoneOverflow(page)).toEqual([]);
+  expect(errors).toEqual([]);
+});
+
+test('under a raised Live limit the ticket offers the sizes under it, and the longest words still fit', async ({ page }) => {
+  const api = await mockPhoneApi(page, { venue: 'live', armed: true, liveCap: 1000, held: 1200 });
+  await openTrade(page);
+  await expect(page.getByTestId('phone-live-limit')).toHaveText('Live limit: 1,000 shares. Raise it on the desk.');
+  const sizes = page.getByRole('group', { name: 'Shares to buy' }).getByRole('button');
+  await expect(sizes).toHaveText(['100', '500', '1,000']);
+  // Real money never starts at the limit: the phone's first Live size is 1, which the row rounds to its smallest.
+  await expect(page.getByTestId('phone-buy-market')).toContainText('LIVE BUY 100');
+  await sizes.last().click();
+  await expect(page.getByTestId('phone-buy-market')).toContainText('LIVE BUY 1,000');
+  // Half of 1,200 goes whole; all of it is cut to the limit.
+  await expect(page.getByTestId('phone-sell-50-bid')).toContainText('LIVE SELL 600');
+  await expect(page.getByTestId('phone-sell-100-bid')).toContainText('LIVE SELL 1,000');
+  expect(await phoneOverflow(page)).toEqual([]);
+  expect(api.writes).toEqual([]);
+});
+
+test('on Live a locked padlock asks for the Live PIN before anything is sent', async ({ page }) => {
+  const api = await mockPhoneApi(page, { venue: 'live' });
+  await openTrade(page);
+  await page.getByTestId('phone-trade-locked').click();
+  const sheet = page.getByTestId('phone-pin-sheet');
+  for (const digit of PHONE_PIN) await sheet.getByRole('button', { name: digit, exact: true }).click();
+  await expect(sheet).toHaveAttribute('data-use', 'live');
+  for (const digit of PHONE_LIVE_PIN) await sheet.getByRole('button', { name: digit, exact: true }).click();
+  await expect(sheet).toBeHidden();
+  await expect(page.getByTestId('phone-banner')).toContainText('Padlock open · LIVE');
+  await expect(page.getByTestId('phone-trade-locked')).toBeHidden();
+  expect(api.orders).toEqual([]);
+  expect(api.writes).toEqual(['POST /api/phone/unlock', 'POST /api/phone/arm']);
 });
 
 test('the Trade tab with no stock chosen says how to choose one, and remembers the last one traded', async ({ page }) => {

@@ -1,17 +1,19 @@
-"""``/api/phone`` (ADR 070, amendment 2026-11-10): unlock with the phone PIN, then trade Paper or Sim.
+"""``/api/phone`` (ADR 070, amendment 2026-11-10): unlock with the phone PIN, then trade the desk's venue.
 
 The only writes another device may make (``request_guard``), opened by the phone PIN's session and
-not by ``X-Nova-Api-Key`` (``auth``): the key never leaves the PC. Every order names the desk's venue
-(Paper or Sim) and is handed to the desk's own handlers, so the one order door judges it -- the arm
-latch, the stale-view rules (ADR 045), the size limit (ADR 064), the loss limit -- and refuses it
-``VENUE_CHANGED`` if the desk has moved by the time it is sent. On Live the phone looks only. No short
-entry, no bracket, no setting: a buy, a sell, a stop, a flatten, a cancel, the padlock on Paper and Sim,
-and (amendment 2026-11-13) the desk's venue and the Sim's playhead, each through the desk's own handler.
+not by ``X-Nova-Api-Key`` (``auth``): the key never leaves the PC. Every order names the venue the
+operator tapped on and is handed to the desk's own handlers, so the one order door judges it -- the arm
+latch, the stale-view rules (ADR 045), the size limit (ADR 064), the loss limit, and on Live the IBKR
+door's own keys and share limit -- and refuses it ``VENUE_CHANGED`` if the desk has moved by the time it
+is sent. Live since 2026-11-20: the padlock opens there only with the Live PIN, judged by the desk's own
+rule (``ibkr.safety.arm``). No short entry, no bracket, no setting: a buy, a sell, a stop, a flatten, a
+cancel, the padlock, and (amendment 2026-11-13) the desk's venue and the Sim's playhead, each through the
+desk's own handler.
 
 The phone's Trade screen (amendment 2026-11-12) sends the desk's own order body here, so the fields it
 does not take (a time in force) are read past: every order is DAY. The venue it names is the one the operator
-tapped on, and it is forwarded to the door unchanged, so a desk that moved between Paper and Sim since the tap
-is refused ``VENUE_CHANGED`` instead of trading the other account (review of PR #1325).
+tapped on, and it is forwarded to the door unchanged, so a desk that moved since the tap is refused
+``VENUE_CHANGED`` instead of trading the other account (review of PR #1325).
 """
 from __future__ import annotations
 
@@ -26,11 +28,9 @@ from phone import pin, session
 from phone.constants_phone import (
     PHONE_API_PREFIX,
     PHONE_LOCKED,
-    PHONE_LIVE_LOOK_ONLY,
     PHONE_NO_VIEW,
     PHONE_SCHEMA_VERSION,
     PHONE_SIM_CLOCK_KEYS,
-    PHONE_TRADE_VENUES,
     PHONE_VENUE,
 )
 from routes import trading_execution as desk
@@ -45,6 +45,9 @@ class UnlockBody(BaseModel):
 
 class ArmBody(BaseModel):
     armed: StrictBool
+    # The Live PIN, when the padlock is opened on Live (amendment 2026-11-20). Passed to the desk's rule once, never
+    # kept or logged; Paper and Sim open without one.
+    pin: str | None = Field(default=None, max_length=32)
 
 
 Venue = Literal["live", "paper", "sim"]
@@ -55,7 +58,7 @@ class VenueBody(BaseModel):
 
 
 class PhoneOrder(BaseModel):
-    """One order on Paper or Sim. The timing and the view are required: without them the door would not judge lag."""
+    """One order on the desk's venue. The timing and the view are required: without them the door would not judge lag."""
 
     symbol: str = Field(min_length=1, max_length=16)
     side: Literal["BUY", "SELL"]
@@ -91,21 +94,13 @@ def require_session(x_nova_phone_session: str | None = Header(default=None)) -> 
     return str(x_nova_phone_session)
 
 
-def _trade_venue(tapped: str | None = None) -> str:
+def _order_venue(tapped: str | None = None) -> str:
     """The venue a phone write goes to: the one the operator tapped on when the phone names it, else the desk's now.
 
-    Refused in plain words when either is Live, before the door. The venue returned is handed to the door unchanged:
-    when the desk is no longer on it by the time the write is sent, the door refuses ``VENUE_CHANGED``, so a tap on
-    Paper never sells, flattens or cancels on Sim (or the other way round)."""
-    where = _venue()
-    if where not in PHONE_TRADE_VENUES:
-        raise _refuse(PHONE_LIVE_LOOK_ONLY,
-                      f"The desk is on {where.capitalize()}: from the phone, Live is look only. Send Live orders "
-                      "from the PC. Nothing was sent.", 409)
-    if tapped is not None and tapped not in PHONE_TRADE_VENUES:
-        raise _refuse(PHONE_LIVE_LOOK_ONLY,
-                      "That tap was on Live: from the phone, Live is look only. Nothing was sent.", 409)
-    return tapped or where
+    Handed to the door unchanged: when the desk is no longer on it by the time the write is sent, the door refuses
+    ``VENUE_CHANGED``, so a tap on one venue never buys, sells, flattens or cancels on another. Live is judged there
+    like any desk order since 2026-11-20 -- the padlock it needs opens only with the Live PIN."""
+    return tapped or _venue()
 
 
 def _status(token: str | None) -> dict[str, Any]:
@@ -119,9 +114,12 @@ def _status(token: str | None) -> dict[str, Any]:
         "expires_at": session.expires_at(token),
         "venue": where,
         "paper": where == PHONE_VENUE,
-        # Whether the phone may send orders on the desk's venue now (Paper or Sim).
-        "trades": where in PHONE_TRADE_VENUES,
+        # Whether the phone may send orders on the desk's venue now: on every venue since 2026-11-20 (an older backend
+        # answered false on Live, where the phone only looked).
+        "trades": True,
         "armed": bool(safety.armed()),
+        # Opening the padlock needs the Live PIN (the desk is on Live); the phone asks for it before it asks the PC.
+        "arm_requires_pin": bool(safety.arm_requires_pin()),
         # The PC's clock (epoch s): the phone's once-a-second read of this route measures its link and its clock.
         "now": time.time(),
     }
@@ -138,7 +136,7 @@ def unlock(body: UnlockBody) -> dict[str, Any]:
     if code:
         raise _refuse(code, reason, 403)
     token, _expires = session.open_session()
-    logger.warning("PHONE: unlocked with the operator's PIN (Paper and Sim)")
+    logger.warning("PHONE: unlocked with the operator's PIN")
     return {"token": token, **_status(token)}
 
 
@@ -151,20 +149,24 @@ def lock(token: str = Depends(require_session)) -> dict[str, Any]:
 
 @router.post("/arm")
 def arm(body: ArmBody, token: str = Depends(require_session)) -> dict[str, Any]:
-    """The padlock, from the phone. Locking is always allowed; unlocking only while the desk is on Paper or Sim."""
+    """The padlock, from the phone: the desk's own rule (``ibkr.safety.arm``), so the phone and the PC open it alike.
+
+    Locking always goes. Opening on Live takes the Live PIN in ``pin`` (amendment 2026-11-20), checked against the
+    desk's hash and counted with the wrong PINs typed on the PC; a desk that moved to Live between the tap and this
+    request refuses a padlock opened without one. Paper and Sim open without a PIN, as on the desk."""
     from ibkr import safety
 
-    if body.armed:
-        _trade_venue()
-    code, reason = safety.arm(bool(body.armed), actor="operator")
+    code, reason = safety.arm(bool(body.armed), pin=body.pin if body.armed else None, actor="operator")
     if code:
+        logger.warning("PHONE: the padlock was not opened -- %s", code)
         raise _refuse(code, reason, 403)
+    logger.warning("PHONE: padlock %s from the phone on %s", "opened" if body.armed else "locked", _venue())
     return _status(token)
 
 
 @router.post("/order")
 async def place(body: PhoneOrder, request: Request, _token: str = Depends(require_session)) -> dict:
-    where = _trade_venue(body.venue)
+    where = _order_venue(body.venue)
     order = desk.OrderRequest(
         symbol=body.symbol.strip().upper(), side=body.side, qty=body.qty, order_type=body.order_type,
         limit_price=body.limit_price, stop_price=body.stop_price, reference_price=body.reference_price,
@@ -186,7 +188,7 @@ async def cancel(
     order_id: int, request: Request, venue: Venue | None = None, _token: str = Depends(require_session),
 ) -> dict:
     """Cancel one working order. ``venue``: the one the order was shown on; an order id means nothing elsewhere."""
-    where = _trade_venue(venue)
+    where = _order_venue(venue)
     return await desk.cancel_order(order_id, request, idempotency_key=None, venue=where)
 
 
@@ -197,7 +199,7 @@ async def cancel_many(
 ) -> dict:
     """Cancel every working order on one symbol, or (``all_symbols=true``) on every symbol, on the venue the
     operator tapped on (``venue``), else the desk's now."""
-    where = _trade_venue(venue)
+    where = _order_venue(venue)
     return await desk.cancel_orders_for_symbol(
         request, symbol=None if all_symbols else symbol, all_symbols=all_symbols, venue=where,
     )

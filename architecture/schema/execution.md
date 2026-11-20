@@ -366,7 +366,7 @@ Every refusal ends "Selling what you hold, covering a short, cancels, Flatten an
 
 ---
 
-## Paper and Sim orders from the phone (ADR 070 amendment, operator decision 2026-11-10)
+## Orders from the phone (ADR 070 amendment, operator decisions 2026-11-10 and 2026-11-20)
 
 Another device may write to one prefix, `/api/phone` (owner `backend/phone/`). The request guard lets those writes
 through (every other one is still `403 REMOTE_VIEW_ONLY`), and the API key middleware does not ask them for
@@ -380,19 +380,25 @@ which still holds the hash the API started with: a changed PIN replaces the old 
 row lock the phone for 300 s; the count is its own, apart from the count of wrong PINs typed on the PC. The unlock
 opens the phone's door only: it never arms the desk.
 
+**The Live padlock** (amendment 2026-11-20). Opening the padlock while the desk is on Live takes the Live PIN in the
+same request (`POST /api/phone/arm {armed: true, pin}`), judged by the desk's own rule (`ibkr.safety.arm` against
+`NOVA_LIVE_ARM_PIN_HASH`): the PC's PIN even while a separate phone PIN is set, and the PC's count of wrong ones
+(five, then `ARM_PIN_LOCKED` for 300 s), wherever they were typed. The PIN is logged nowhere. On Paper and Sim the
+padlock opens without one, as on the desk; a `pin` sent there is not read. Locking never needs one.
+
 **The session.** One random token in memory. It ends 8 hours after the unlock, on Lock, on a newer unlock, and when
 the backend restarts. Every write but the unlock carries it in `X-Nova-Phone-Session`.
 
 | Route | Body | Answer |
 |---|---|---|
-| `GET /api/phone` | -- | `{schema_version: 1, pin_set, unlocked, expires_at, venue, paper, armed, now}`; `unlocked` and `expires_at` read the session header when sent; `now` is the PC's clock (epoch s), which the phone's screens read once a second to time the link and correct their clock |
+| `GET /api/phone` | -- | `{schema_version: 1, pin_set, unlocked, expires_at, venue, paper, trades, armed, arm_requires_pin, now}`; `unlocked` and `expires_at` read the session header when sent; `trades` is true on every venue since 2026-11-20 (an older backend said false on Live); `arm_requires_pin` is true while opening the padlock needs the Live PIN (the desk on Live); `now` is the PC's clock (epoch s), which the phone's screens read once a second to time the link and correct their clock |
 | `POST /api/phone/unlock` | `{pin}` | the status, plus `token` |
 | `POST /api/phone/lock` | -- | the status |
-| `POST /api/phone/arm` | `{armed: bool}` | the status. Locking always goes; unlocking only while the desk is on Paper or Sim |
+| `POST /api/phone/arm` | `{armed: bool, pin?: str}` | the status. Locking always goes; opening on Live needs `pin`, the Live PIN (above) |
 | `POST /api/phone/order` | `{symbol, side: "BUY"\|"SELL", qty, order_type: "MKT"\|"LMT"\|"STP", limit_price?, stop_price?, reference_price?, outside_rth?, intent?: "flatten", venue?: "live"\|"paper"\|"sim", idempotency_key?, client_timing, view}` | what `POST /api/ibkr/order` answers |
 | `DELETE /api/phone/order/{order_id}?venue=` | -- | what `DELETE /api/ibkr/order/{order_id}` answers |
 | `DELETE /api/phone/orders?symbol=&venue=` | -- | what `DELETE /api/ibkr/orders?symbol=` answers |
-| `DELETE /api/phone/orders?all_symbols=true&venue=` | -- | what `DELETE /api/ibkr/orders?all_symbols=true` answers: every working order on the venue (Paper or Sim), on every stock |
+| `DELETE /api/phone/orders?all_symbols=true&venue=` | -- | what `DELETE /api/ibkr/orders?all_symbols=true` answers: every working order on the venue, on every stock |
 | `POST /api/phone/venue` | `{venue: "live"\|"paper"\|"sim"}` | the status, plus `left` (what `POST /api/desk/venue` answers: Nova's entries cancelled on the venue left) and `gateway` (the Live Gateway's words when the switch to Live asked for it and it had something to say, else null). Amendment 2026-11-13 |
 | `GET /api/phone/venue/effects` | -- | `{venue, lines: [str], unknown: [str]}`: what leaving the desk's venue now would cancel or change, in plain words; `unknown` names a check that could not be read. No session needed (a read) |
 | `POST /api/phone/sim/clock` | `{paused: bool}` or `{minute_from_open: int, symbol?: str}` | what `POST /api/sim/clock` answers. Any other key is `422`; off Sim the desk's own `409` |
@@ -403,19 +409,20 @@ Refusals are `{"detail": {"reason": <code>, "error": <words>}}`:
 |---|---|---|
 | 401 | `PHONE_LOCKED` | no session, an ended one, or a wrong token |
 | 403 | `PHONE_PIN_REQUIRED`, `PHONE_PIN_NOT_SET`, `PHONE_PIN_INVALID`, `PHONE_PIN_LOCKED` | the unlock |
-| 409 | `PHONE_LIVE_LOOK_ONLY` | an order, a cancel or opening the padlock while the desk is on Live: "from the phone, Live is look only ... Nothing was sent." |
+| 403 | `ARM_PIN_REQUIRED`, `ARM_PIN_NOT_SET`, `ARM_PIN_INVALID`, `ARM_PIN_LOCKED` | opening the padlock on Live: the desk's own Live PIN refusals, in its words |
 | 409 | `PHONE_NO_VIEW` | a new entry whose `view` has no `book` or no `instance`: the phone received no Level 2 to price it from. A sell out of a long, a buy that covers and a Flatten are not held |
 | 422 | -- | an order without `client_timing` or `view`, or with a field the phone does not send |
 
 **What an order becomes.** The phone's route builds the desk's own `OrderRequest` with the venue the operator
-tapped on (`venue`, the one the phone's screen showed; none named is the desk's venue at receipt), `paper` or `sim`
-(amendment 2026-11-13), and calls the desk's own handler, so the command is the one a desk order makes
-(`source: "manual"`, or `flatten` with `intent: "flatten"`) with that `expected_venue`. The door refuses it
-`VENUE_CHANGED` when the desk is no longer on that venue, so a tap on Paper never trades Sim (or the other way round)
-after the desk moved. A cancel's `venue` is handed on the same way: an order id means nothing on another venue. On
-Live, or for a tap on Live, `PHONE_LIVE_LOOK_ONLY` refuses it first. Every gate of the door judges it: the
-arm latch, the stale view (ADR 045), the size limit (ADR 064), the loss limit. It never carries `short_entry`, bracket
-legs or a `target_venue`.
+tapped on (`venue`, the one the phone's screen showed; none named is the desk's venue at receipt) -- `live`,
+`paper` or `sim` (Sim since 2026-11-13, Live since 2026-11-20) -- and calls the desk's own handler, so the command
+is the one a desk order makes (`source: "manual"`, or `flatten` with `intent: "flatten"`) with that
+`expected_venue`. The door refuses it `VENUE_CHANGED` when the desk is no longer on that venue, so a tap on one
+venue never trades another after the desk moved. A cancel's `venue` is handed on the same way: an order id means
+nothing on another venue. Every gate of the door judges it: the arm latch, the stale view (ADR 045), the size
+limit (ADR 064), the loss limit, and on Live the IBKR door's own keys (Invariant 7), the account pin (ADR 013) and
+the Live share limit (`IBKR_QTY_CAP`, `/api/ibkr/status` `qty_cap`), which cuts a manual place to the limit and
+never a Flatten. It never carries `short_entry`, bracket legs or a `target_venue`.
 
 **The Trade screen sends the desk's own order body** (amendment 2026-11-12): the phone's ticket is the desk's ticket
 code (`hotkeys/runNovaAction`, `ibkr/placeOrder`) posting to this prefix, so a body may also carry `tif`,

@@ -12,7 +12,8 @@ from ibkr import arm_pin
 from ibkr import safety as _safety
 from market_view import gate
 from phone import pin, session
-from phone.constants_phone import PHONE_LIVE_LOOK_ONLY, PHONE_PIN_HASH_ENV, PHONE_SESSION_HEADER
+from constants_ibkr import ARM_PIN_HASH_ENV
+from phone.constants_phone import PHONE_PIN_HASH_ENV, PHONE_SESSION_HEADER
 from practice import broker as practice_broker
 from practice.broker import for_venue, reset_for_tests
 from request_guard.middleware import RequestGuardMiddleware
@@ -23,6 +24,8 @@ from sim.mode import reset_for_tests as reset_venue, set_venue
 PHONE = "desk.tail1234.ts.net"
 REMOTE = {"host": PHONE, "tailscale-user-login": "operator@example.com"}
 PIN = "135790"
+# The desk's Live PIN, set apart from the phone's own here: the Live padlock takes this one only.
+LIVE_PIN = "864202"
 SYM = "IMCC"
 
 
@@ -59,8 +62,10 @@ def phone(monkeypatch):
     monkeypatch.setattr(practice_broker, "LiveReference", FakeLive)
     monkeypatch.setattr(gate, "desk_lock", lambda symbol, **_: None)  # the feed is healthy
     monkeypatch.setenv(PHONE_PIN_HASH_ENV, arm_pin.hash_pin(PIN, iterations=1000))
+    monkeypatch.setenv(ARM_PIN_HASH_ENV, arm_pin.hash_pin(LIVE_PIN, iterations=1000))
     monkeypatch.delenv("NOVA_API_KEY", raising=False)
     pin.reset_for_tests()
+    arm_pin.reset_for_tests()
     session.close()
     set_venue("paper")
     guard = next(m for m in app.user_middleware if m.cls is RequestGuardMiddleware)
@@ -73,6 +78,8 @@ def phone(monkeypatch):
     finally:
         app.middleware_stack = None
         session.close()
+        arm_pin.reset_for_tests()
+        _safety.set_armed(False, reason="test teardown")
         service.reset_for_tests()
         inflight.reset_for_tests()
         reset_for_tests()
@@ -136,19 +143,62 @@ def test_a_buy_from_a_phone_that_received_no_level_2_is_not_sent_and_its_ways_ou
     assert sell.get("reason_code") != "VIEW_STALE" and "detail" not in sell
 
 
-def test_the_desk_on_live_refuses_the_phone_at_its_route_and_a_move_at_the_door(phone, monkeypatch):
+def test_on_live_the_padlock_opens_only_with_the_desks_live_pin(phone):
+    """Amendment 2026-11-20: the phone opens the Live padlock through the desk's own rule -- the PC's Live PIN, never
+    the phone's own PIN, and the PC's count of wrong ones. Locking needs none."""
     client, unlocked = phone
     set_venue("live")
-    res = client.post("/api/phone/order", headers=unlocked, json=_order())
-    assert res.status_code == 409 and res.json()["detail"]["reason"] == PHONE_LIVE_LOOK_ONLY
-    # The route read Paper and the desk moved to Sim before the send: the door itself holds the line.
-    from phone import routes
+    assert client.get("/api/phone", headers=unlocked).json()["arm_requires_pin"] is True
+    for body, code in (({"armed": True}, "ARM_PIN_REQUIRED"),
+                       ({"armed": True, "pin": PIN}, "ARM_PIN_INVALID"),  # the phone's own PIN opens the phone only
+                       ({"armed": True, "pin": "000000"}, "ARM_PIN_INVALID")):
+        res = client.post("/api/phone/arm", headers=unlocked, json=body)
+        assert res.status_code == 403 and res.json()["detail"]["reason"] == code, res.text
+    assert _safety.armed() is False
+    opened = client.post("/api/phone/arm", headers=unlocked, json={"armed": True, "pin": LIVE_PIN})
+    assert opened.status_code == 200 and opened.json()["armed"] is True
+    assert (_safety.armed(), _safety.armed_by()) == (True, "operator")
+    assert client.post("/api/phone/arm", headers=unlocked, json={"armed": False}).json()["armed"] is False
+    # Wrong PINs typed on the phone count with the PC's: five, and Live arming is locked even for the right one.
+    for _ in range(5):
+        client.post("/api/phone/arm", headers=unlocked, json={"armed": True, "pin": "111111"})
+    locked = client.post("/api/phone/arm", headers=unlocked, json={"armed": True, "pin": LIVE_PIN})
+    assert locked.status_code == 403 and locked.json()["detail"]["reason"] == "ARM_PIN_LOCKED"
+    assert _safety.armed() is False
 
-    set_venue("sim")
-    monkeypatch.setattr(routes, "_trade_venue", lambda tapped=None: "paper")
-    moved = client.post("/api/phone/order", headers=unlocked, json=_order()).json()
+
+def test_on_live_a_phone_order_is_the_desks_live_order(phone, monkeypatch):
+    """A Live order from the phone reaches the desk's Live door: the padlock holds it, the Live share limit cuts it,
+    and with the padlock open it goes on to the IBKR door's own checks (no Gateway here, so it stops there)."""
+    from constants import IBKR_FORCE_ONE_SHARE, IBKR_QTY_CAP_ENV
+
+    client, unlocked = phone
+    monkeypatch.setenv(IBKR_QTY_CAP_ENV, "1")
+    set_venue("live")
+    shut = client.post("/api/phone/order", headers=unlocked, json=_order(venue="live")).json()
+    assert (shut["ok"], shut["reason_code"]) == (False, "DISARMED")
+    assert client.post("/api/phone/arm", headers=unlocked, json={"armed": True, "pin": LIVE_PIN}).json()["armed"] is True
+    sent = client.post("/api/phone/order", headers=unlocked, json=_order(venue="live", qty=5)).json()
+    assert sent["ok"] is False and sent["reason_code"] == "ORDERS_GATE", sent
+    row = store.get_by_id(sent["execution_id"])
+    assert (row["source"], row["payload"]["venue"]) == ("manual", "live")
+    if IBKR_FORCE_ONE_SHARE:
+        payload = row["payload"]
+        assert (payload["requested_qty"], payload["sent_qty"], payload["forced_one_share"]) == (5.0, 1.0, True)
+    assert for_venue("paper").working_orders() == [] and for_venue("sim").working_orders() == []
+
+
+def test_a_tap_on_live_never_trades_paper_after_the_desk_moved(phone):
+    """The venue the phone names is the one the operator tapped on; the door refuses it once the desk left it."""
+    client, unlocked = phone
+    set_venue("paper")
+    _safety.set_armed(True, reason="test")
+    moved = client.post("/api/phone/order", headers=unlocked, json=_order(venue="live")).json()
     assert (moved["ok"], moved["reason_code"]) == (False, "VENUE_CHANGED")
     assert for_venue("paper").working_orders() == []
+    # A padlock opened on Paper is not one on Live: a move to Live leaves the desk locked there.
+    set_venue("live")
+    assert _safety.armed() is False
 
 
 def test_a_tap_on_paper_never_trades_sim_after_the_desk_moved(phone):
@@ -166,9 +216,9 @@ def test_a_tap_on_paper_never_trades_sim_after_the_desk_moved(phone):
     assert "moved from Paper to Sim" in cancel["error"]
     one = client.delete("/api/phone/order/41?venue=paper", headers=unlocked).json()
     assert one["ok"] is False, one
-    # A tap on Live is look only, whatever the desk is on now; a venue that does not exist is not read at all.
-    live = client.post("/api/phone/order", headers=unlocked, json=_order(venue="live"))
-    assert live.status_code == 409 and live.json()["detail"]["reason"] == PHONE_LIVE_LOOK_ONLY
+    # A tap on Live goes to Live's door, which the desk has left; a venue that does not exist is not read at all.
+    live = client.post("/api/phone/order", headers=unlocked, json=_order(venue="live")).json()
+    assert (live["ok"], live["reason_code"]) == (False, "VENUE_CHANGED")
     assert client.delete(f"/api/phone/orders?symbol={SYM}&venue=bank", headers=unlocked).status_code == 422
 
 

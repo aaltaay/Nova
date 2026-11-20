@@ -1147,7 +1147,7 @@ asks `GET /api/market-view/gate?symbol=` once a second.
 build, served over the private tunnel beside the link test. It holds no API key.
 It is not in the demo build. It adds no route and no socket of its own: every
 read below is one the desk already makes, and every write goes to `/api/phone`
-(`architecture/schema/execution.md`, "Paper and Sim orders from the phone").
+(`architecture/schema/execution.md`, "Orders from the phone").
 
 - **Where the API is:** as the link test works it out (a loopback page uses
   `http://127.0.0.1:8000`; any other name uses port 8443 of that name over
@@ -1320,8 +1320,8 @@ read below is one the desk already makes, and every write goes to `/api/phone`
   `GET /api/phone/venue/effects` and says those lines in amber before the tap,
   or that nothing of Nova's waits on the venue; an `unknown` check is said as
   unknown. The Sim row names what the desk has loaded (`/api/sim/clock`'s
-  `replay_symbol` and `session_date`, or the live edge). The Live row says the
-  phone looks only. Settings' venue row switches the same way. A tap outside
+  `replay_symbol` and `session_date`, or the live edge). The Live row says its
+  padlock asks for the Live PIN. Settings' venue row switches the same way. A tap outside
   the menu, or Back, closes it.
 - **On Sim** (`phone/trade/SimStrip.tsx`) a strip under the Trade screen's
   header reads `/api/sim/clock` (the desk's `simClockResource`): the playhead's
@@ -1333,9 +1333,18 @@ read below is one the desk already makes, and every write goes to `/api/phone`
   screen (`captureQuoteDetail`); anything else shows the desk's rail note
   (`simRailNote`, or "this replay shows on the PC" for a Massive-file window)
   in place of the book and the tape, and the ticket sends nothing.
-- **On Live** the ticket is drawn grey with its reason ("from the phone, Live is
-  look only"); the account, the orders and the market read as on the other
-  venues.
+- **On Live** (amendment 2026-11-20) the ticket trades, after the Live padlock
+  is opened with the Live PIN (`PhonePinSheet` in its Live form, which sends
+  the PIN with `POST /api/phone/arm` and keeps it nowhere; the phone's own
+  PIN sheet comes first when the phone itself is locked). The screen wears the
+  frozen Live board's marks: its edge in the Live colour, the band "LIVE ·
+  REAL MONEY" under the header, and LIVE on every order button. The Live
+  share limit is read from `/api/ibkr/status` (`qty_cap`, the desk's): sizes
+  over it are not offered (Quick shows the ones under it and the limit
+  itself, with "Live limit: N shares. Raise it on the desk."; Custom's
+  stepper stops at it), and every Live sell says the shares that go ("LIVE
+  SELL 1" when the limit cuts it). Flatten is never cut. Everything else -- the gate, the price, the
+  order body -- is the desk's ticket code, as on Paper.
 - **Level 2's marks** (amendment 2026-11-13; `phone/trade/BookMarks.tsx`). The
   depth socket's `book_watch` frames (`useIbkrDepth().watch`) go through the
   desk ladder's own functions for the rows on screen: `bigRows` (a big seller

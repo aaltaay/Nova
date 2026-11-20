@@ -31,7 +31,7 @@ export function simRowNote(clock: SimClockState | null): string {
 const ROWS: readonly { id: Venue; title: string; note: (clock: SimClockState | null) => string }[] = [
   { id: 'paper', title: 'Practice money', note: () => 'live IBKR prices' },
   { id: 'sim', title: 'Replay', note: simRowNote },
-  { id: 'live', title: 'Real money', note: () => 'IBKR · look only from the phone' },
+  { id: 'live', title: 'Real money', note: () => 'IBKR · the padlock asks for your Live PIN' },
 ];
 
 /** The foot's words: what leaving `here` would change, or that nothing would. Null while it is read. */

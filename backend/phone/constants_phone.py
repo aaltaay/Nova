@@ -17,9 +17,9 @@ PHONE_SESSION_SEC = 8 * 3600.0
 PHONE_PIN_MAX_FAILURES = 5
 PHONE_PIN_LOCKOUT_SEC = 300.0
 
-# The venues the phone trades (amendment 2026-11-13: Sim too). On Live it looks only.
+# The phone trades the desk's venue, whichever it is (Sim since 2026-11-13, Live since 2026-11-20, after the Live
+# PIN opens the padlock). ``paper`` in the status names this one.
 PHONE_VENUE = "paper"
-PHONE_TRADE_VENUES = ("paper", "sim")
 # What a phone may ask of the desk's Sim clock: pause / play, and a step to a minute (the desk strip's).
 PHONE_SIM_CLOCK_KEYS = frozenset({"paused", "minute_from_open", "symbol"})
 
@@ -28,7 +28,6 @@ PHONE_PIN_NOT_SET = "PHONE_PIN_NOT_SET"
 PHONE_PIN_INVALID = "PHONE_PIN_INVALID"
 PHONE_PIN_LOCKED = "PHONE_PIN_LOCKED"
 PHONE_LOCKED = "PHONE_LOCKED"
-PHONE_LIVE_LOOK_ONLY = "PHONE_LIVE_LOOK_ONLY"
 PHONE_NO_VIEW = "PHONE_NO_VIEW"
 
 

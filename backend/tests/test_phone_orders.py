@@ -1,6 +1,7 @@
 """The phone's door (ADR 070, amendment 2026-11-10): another device may write only to ``/api/phone``,
-only after the phone PIN, and only orders on Paper or Sim (amendment 2026-11-13) -- handed to the desk's own
-order door. On Live the phone looks only."""
+only after the phone PIN, and every order is handed to the desk's own order door naming the venue it was
+tapped on -- Paper, Sim (amendment 2026-11-13) and Live (amendment 2026-11-20), where the padlock opens only
+with the Live PIN."""
 from __future__ import annotations
 
 import time
@@ -11,7 +12,6 @@ from fastapi.testclient import TestClient
 from ibkr import arm_pin
 from phone import pin, routes, session
 from phone.constants_phone import (
-    PHONE_LIVE_LOOK_ONLY,
     PHONE_LOCKED,
     PHONE_PIN_HASH_ENV,
     PHONE_PIN_INVALID,
@@ -208,18 +208,26 @@ def test_the_command_the_door_gets_names_paper():
     assert (cmd.expected_venue, cmd.source, cmd.short_entry) == ("paper", "manual", False)
 
 
-def test_on_live_the_phone_sends_nothing_and_says_why(phone):
+def test_on_live_the_phone_orders_through_the_desks_own_handlers(phone, monkeypatch):
+    """Amendment 2026-11-20: Live is no longer look only. The order, the cancels and the venue they name are the
+    desk's, so the door judges a Live order from the phone as it judges one from the PC."""
+    from ibkr import safety
+
     client, state = phone
+    monkeypatch.setattr(safety, "arm_requires_pin", lambda: state["venue"] == "live")
     unlocked = _unlock(client)
     state["venue"] = "live"
-    for res in (client.post("/api/phone/order", headers=unlocked, json=ORDER),
-                client.delete("/api/phone/order/3", headers=unlocked),
-                client.delete("/api/phone/orders?symbol=F", headers=unlocked),
-                client.post("/api/phone/arm", headers=unlocked, json={"armed": True})):
-        assert res.status_code == 409 and res.json()["detail"]["reason"] == PHONE_LIVE_LOOK_ONLY
-        assert "Live is look only" in res.json()["detail"]["error"] and "Nothing was sent" in res.json()["detail"]["error"]
-    assert state["sent"] == []
-    assert client.get("/api/phone", headers=unlocked).json()["trades"] is False
+    limit = {**ORDER, "order_type": "LMT", "limit_price": 4.87}
+    assert client.post("/api/phone/order", headers=unlocked, json=limit).json()["ok"] is True
+    assert client.delete("/api/phone/order/3", headers=unlocked).status_code == 200
+    assert client.delete("/api/phone/orders?symbol=F", headers=unlocked).status_code == 200
+    order, *cancels = state["sent"]
+    assert (order.venue, order.limit_price, order.short_entry, order.take_profit_price) == ("live", 4.87, False, None)
+    assert cancels == [("cancel", 3, "live"), ("cancel_symbol", "F", False, "live")]
+    status = client.get("/api/phone", headers=unlocked).json()
+    assert (status["venue"], status["trades"], status["arm_requires_pin"]) == ("live", True, True)
+    state["venue"] = "paper"
+    assert client.get("/api/phone", headers=unlocked).json()["arm_requires_pin"] is False
 
 
 def test_on_sim_the_phone_trades_the_sim(phone):
@@ -245,7 +253,9 @@ def test_an_order_without_its_timing_or_its_view_is_not_an_order(phone):
     assert state["sent"] == []
 
 
-def test_the_phone_locks_paper_from_anywhere_and_unlocks_it_only_on_paper(phone, monkeypatch):
+def test_the_padlock_from_the_phone_is_the_desks_own_rule(phone, monkeypatch):
+    """The phone hands the padlock to ``safety.arm`` with the PIN it was given, so Live's own PIN rule decides --
+    the same rule that refuses an open sent without one after the desk moved to Live. A lock never carries one."""
     from ibkr import safety
 
     client, state = phone
@@ -255,9 +265,27 @@ def test_the_phone_locks_paper_from_anywhere_and_unlocks_it_only_on_paper(phone,
     unlocked = _unlock(client)
     assert client.post("/api/phone/arm", headers=unlocked, json={"armed": True}).json()["armed"] is True
     state["venue"] = "live"
-    assert client.post("/api/phone/arm", headers=unlocked, json={"armed": False}).json()["armed"] is False
-    # Never a PIN passed on: Live's own PIN rule is what refuses an arm if the desk moved.
-    assert calls == [(True, None, "operator"), (False, None, "operator")]
+    assert client.post("/api/phone/arm", headers=unlocked, json={"armed": False, "pin": "135790"}).json()["armed"] is False
+    assert client.post("/api/phone/arm", headers=unlocked, json={"armed": True, "pin": "135790"}).json()["armed"] is True
+    assert calls == [(True, None, "operator"), (False, None, "operator"), (True, "135790", "operator")]
+    # A PIN is a PIN: nothing longer is read.
+    assert client.post("/api/phone/arm", headers=unlocked, json={"armed": True, "pin": "1" * 33}).status_code == 422
+
+
+def test_a_refused_live_padlock_says_the_desks_words_and_logs_no_pin(phone, monkeypatch, caplog):
+    """A wrong Live PIN is the desk's own refusal (403, its code and words). The PIN itself reaches no log."""
+    import logging
+
+    from ibkr import safety
+
+    client, _state = phone
+    monkeypatch.setattr(safety, "arm", lambda value, *, pin=None, actor="operator": ("ARM_PIN_INVALID", "Wrong PIN"))
+    unlocked = _unlock(client)
+    with caplog.at_level(logging.DEBUG):
+        res = client.post("/api/phone/arm", headers=unlocked, json={"armed": True, "pin": "975310"})
+    assert res.status_code == 403 and res.json()["detail"] == {"reason": "ARM_PIN_INVALID", "error": "Wrong PIN"}
+    assert "975310" not in caplog.text
+    assert all("975310" not in str(record.args) for record in caplog.records)
 
 
 def test_a_session_ends_on_lock_on_a_second_unlock_and_with_time(phone):
@@ -307,12 +335,14 @@ def test_the_desks_own_order_body_is_read_past_never_trusted(phone):
     assert client.post("/api/phone/order", headers=unlocked, json={**ORDER, "order_type": "TRAIL"}).status_code == 422
 
 
-def test_cancel_all_reaches_every_symbol_on_paper_only(phone):
+def test_cancel_all_reaches_every_symbol_on_the_venue_tapped(phone):
     client, state = phone
     unlocked = _unlock(client)
-    # The venue the cancel was tapped on is kept; none named is the desk's. A tap on Live is look only: nothing sent.
-    assert client.delete("/api/phone/orders?all_symbols=true&venue=live", headers=unlocked).status_code == 409
+    # The venue the cancel was tapped on is kept, Live too (the door refuses it if the desk is elsewhere); none named
+    # is the desk's.
+    assert client.delete("/api/phone/orders?all_symbols=true&venue=live", headers=unlocked).status_code == 200
     assert client.delete("/api/phone/orders?all_symbols=true", headers=unlocked).status_code == 200
     assert client.delete("/api/phone/orders?symbol=F&venue=paper", headers=unlocked).status_code == 200
-    assert state["sent"] == [("cancel_symbol", None, True, "paper"), ("cancel_symbol", "F", False, "paper")]
+    assert state["sent"] == [("cancel_symbol", None, True, "live"), ("cancel_symbol", None, True, "paper"),
+                             ("cancel_symbol", "F", False, "paper")]
     assert client.delete("/api/phone/orders?all_symbols=true", headers=REMOTE).status_code == 401

@@ -115,8 +115,10 @@ it on the home screen, full screen; it opens there from then on.
   orders and shares stay where they are. Settings' venue row does the same.
 - *On Sim* a strip under the header follows the desk's replay: pause / play and a minute back or forward. The day
   and stock are chosen on the PC. A stock that is not the one replaying shows the desk's words instead of a book.
-- *On Live* the phone looks only: the account, the orders and the market show; the ticket is grey and says Live
-  orders go from the PC.
+- *On Live* the screen's edge turns the Live colour and the buttons say LIVE: real money, sent to IBKR. Opening
+  the padlock asks for your Live PIN, the one you type on the PC. Live sends at most the Live share limit
+  (`IBKR_QTY_CAP` on the PC, one share unless you changed it): the ticket offers no bigger size and says when the
+  limit cuts a sell. Flatten always sells the whole position.
 - *Level 2's marks* are the desk's: a big seller or buyer is a dark block framed in white, a hidden seller or buyer
   a violet mark, what was pulled an amber one. The small depth chart under the book opens a page with it large and
   every mark spelled out. Settings turns the marks and the chart off.
@@ -150,10 +152,10 @@ npx cross-env VITE_API_BASE_URL=https://<pc-name>:8443 npm run build
 Everything the desk tries to write from the phone is refused with "Nova is view-only from another device", and its own
 lag lock reads the phone's uncorrected clock. Use the link test, not the desk, to judge lag.
 
-## Paper and Sim orders from the phone
+## Orders from the phone
 
-The phone sends orders on Paper and on Sim from its Trade screen, and from the link-test page (buy, sell, flatten,
-cancel). Never Live: on Live the phone looks only, and the order door refuses a phone order sent after the desk moved.
+The phone sends orders on Paper, Sim and Live from its Trade screen (buy, sell, stop, flatten, cancel), and on Paper
+and Sim from the link-test page. The order door refuses a phone order sent after the desk moved to another venue.
 
 1. **The PIN is the one you already use on the PC.** Nothing to set up. To give the phone a different PIN
    instead, run this on the PC (six digits, typed at a hidden prompt; only its hash is stored). While it is set
@@ -163,10 +165,12 @@ cancel). Never Live: on Live the phone looks only, and the order door refuses a 
    py -3 tools/set_phone_pin.py
    ```
 
-2. **Put the desk on Paper or Sim** (the header pill on the PC, or the venue pill on the phone).
+2. **Choose the venue** (the header pill on the PC, or the venue pill on the phone).
 3. On the phone, open **Trade** on a stock and tap a button: the phone asks for the PIN once, then tap the padlock
-   (or **Locked**) to open the padlock. On the link-test page with a run started, the same two steps are under
-   **Paper orders**.
+   (or **Locked**) to open the padlock. On Live the padlock asks for your Live PIN every time it is opened, as the
+   PC's does, and stays open until you lock it (on the phone or the PC), the venue changes or Nova restarts: lock
+   it when you put the phone down. On the link-test page with a run started, the same two steps are under
+   **Paper orders** (Paper and Sim only).
 4. Send an order. The banner says Sent and how long the desk took to answer, and Nova's own words when it refuses.
 
 An unlock lasts 8 hours, or until you press Lock, unlock from another phone, or the backend restarts. Five wrong PINs

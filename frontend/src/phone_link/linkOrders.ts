@@ -41,9 +41,11 @@ export interface PhoneStatus {
   expires_at: number | null;
   venue: string;
   paper: boolean;
-  /** Whether the phone may send orders on the desk's venue now: Paper or Sim, never Live. */
+  /** Whether the phone may send orders on the desk's venue now: every venue since 2026-11-20 (an older backend said false on Live). */
   trades?: boolean;
   armed: boolean;
+  /** Opening the padlock needs the Live PIN: the desk is on Live (ADR 070 amendment 2026-11-20). */
+  arm_requires_pin?: boolean;
   /** The PC's clock when it answered, epoch seconds. */
   now?: number;
 }
@@ -238,7 +240,7 @@ export class PhoneDoor {
   async unlock(pin: string): Promise<Answer> {
     const answer = await this.ask('POST', '/api/phone/unlock', { pin }, (b) => {
       this.token = typeof b.token === 'string' ? b.token : null;
-      return 'Unlocked: Paper and Sim orders.';
+      return 'Unlocked.';
     });
     return answer;
   }
@@ -250,8 +252,16 @@ export class PhoneDoor {
     });
   }
 
-  arm(armed: boolean): Promise<Answer> {
-    return this.ask('POST', '/api/phone/arm', { armed }, () => (armed ? 'The padlock is open.' : 'The padlock is closed.'));
+  /**
+   * Open or close the desk's padlock. `pin` is the Live PIN, sent only to open it on Live, where the PC checks it
+   * with its own rule (ADR 070 amendment 2026-11-20); it is kept nowhere here.
+   */
+  arm(armed: boolean, pin?: string): Promise<Answer> {
+    const body = armed && pin ? { armed, pin } : { armed };
+    return this.ask('POST', '/api/phone/arm', body, (b) => {
+      if (!armed) return 'The padlock is closed.';
+      return b.venue === 'live' ? 'The padlock is open on Live.' : 'The padlock is open.';
+    });
   }
 
   async order(ctx: OrderContext, side: 'BUY' | 'SELL', qty: number, limitPrice: number | null, intent?: 'flatten'): Promise<Answer> {

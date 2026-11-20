@@ -1,9 +1,10 @@
 /**
  * Trade (frozen mockup R2-Trade): one stock's chart, Level 2, tape and the order ticket on one screen that
  * never scrolls. The book and the tape are the desk's own sockets; every order is the desk's own ticket
- * code, sent through the phone's door after the operator's PIN. Paper and Sim; Live is there to look at
- * (ADR 070 amendment 2026-11-13). On Sim the strip under the header moves the desk's playhead, and the
- * screen follows the desk's replay by the desk's own rules (`trade/tradeVenueView.ts`).
+ * code, sent through the phone's door after the operator's PIN. Paper, Sim and Live: on Live the padlock opens
+ * with the Live PIN, and the screen wears the frozen Live board's marks -- its edge in the Live colour, the band
+ * under the header, LIVE on every button (ADR 070 amendment 2026-11-20). On Sim the strip under the header moves
+ * the desk's playhead, and the screen follows the desk's replay by the desk's own rules (`trade/tradeVenueView.ts`).
  *
  * The grab handle under the chart trades chart height for book rows. Every tap is answered by the banner:
  * Sending, Sent once the desk has it, Filled when the position changes, or NOT SENT in the desk's words.
@@ -164,6 +165,7 @@ function TradeFor({ symbol }: { symbol: string }) {
     <PhoneScreen
       name="trade"
       tab="trade"
+      live={session.venue === 'live'}
       header={(
         <div className="ph-head ph-trade__head">
           <VenuePill />

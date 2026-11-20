@@ -324,6 +324,44 @@ iPhone is untested (Safari takes a push only for a page added to the home screen
 
 **Still not on the phone (#1309):** Volume boost and Setups under Scan's More, starring, drawing.
 
+## Amendment 2026-11-20 -- Live from the phone, after the Live PIN
+
+**Decided by:** the operator, 2026-11-20, from the phone's Trade screen on Live, under the banner "NOT DONE · Open
+the padlock ... from the phone, Live is look only": "Let's complete the live for our mobile app". Asked three
+questions, they chose: on Live the phone does everything it does on Paper once the Live PIN, typed on the phone,
+opens the padlock -- the same PIN and the same check as the PC ("Everything, after Live PIN"); the two Automatic
+help switches wait for the next change; the upright Trade screen now, the sideways Live board next. Decision 32 is
+rewritten by them here, as decision 19 required.
+
+47. **Live orders from the phone, through the desk's one door.** Decision 32 (and so decision 11) now reads: a
+    phone order names the venue the operator tapped on -- Live, Paper or Sim -- and goes through the desk's own
+    handlers, so the door refuses it `VENUE_CHANGED` if the desk has moved by the time it is sent. A Live order
+    from the phone is the desk's Live order: the arm latch, `IBKR_ORDERS_ENABLED`, `IBKR_LIVE_TRADING_CONFIRMED`
+    and the account pin (Invariant 7, ADR 013), the Live share limit (`IBKR_QTY_CAP`), the stale-view rules
+    (ADR 045) and the loss limit judge it, and the desk's Live send places it. `PHONE_LIVE_LOOK_ONLY` is gone.
+    The phone still opens no short and sends no bracket and no setting (decision 22).
+48. **The Live padlock opens with the Live PIN, typed on the phone.** Opening the padlock on Live from the phone
+    sends the PIN with the request (`POST /api/phone/arm {armed, pin}`), and the desk's own rule judges it
+    (`ibkr.safety.arm` against `NOVA_LIVE_ARM_PIN_HASH`): the PC's PIN, and the PC's count of wrong ones -- five,
+    then Live arming is locked for 300 s, wherever they were typed. A separate phone PIN (decision 27) unlocks the
+    phone, never the Live padlock. The PIN is sent once over the tunnel and kept nowhere: not on the phone, not in
+    a log. Locking needs no PIN on any venue. A padlock opened on Live is the desk's one padlock: it stays open
+    until it is locked on either screen, the venue changes or the backend restarts (ADR 018). What keeps Live from
+    a phone in the wrong hands is the tunnel (the operator's own devices), the phone's PIN (its 8-hour session)
+    and this PIN; an open Live padlock is locked by hand when the phone is put down, as on the PC.
+49. **The phone says Live in the desk's words.** On Live the upright Trade screen wears the frozen Live board's
+    marks (R2-Trade-landscape): the screen's edge in the Live colour, the band "LIVE · REAL MONEY", buttons that
+    say LIVE, and the Live share limit as the desk reports it (`/api/ibkr/status` `qty_cap`). A size over the
+    limit is not offered, a button says the shares it sends ("LIVE SELL 1", the board's words, also when the limit
+    cuts a sell of more), and the size row says "Live limit: 1 share. Raise it on the desk." Flatten is never cut: a protective order sizes
+    itself from the position, on the phone as on the desk. The venue menu and Settings say the padlock on Live asks
+    for the Live PIN.
+50. **The link test page stays Paper and Sim.** It is a measuring tool with plain buttons (decision 7); on Live
+    its order panel says so and sends nothing.
+
+Not in this change, and still listed in #1309: the sideways Trade board (a Live board), "Stop with every Live buy"
+and "Stop if this phone goes silent" (drawn, off and locked), starring, drawing, the Massive-file replay on Sim.
+
 ## Rules and maps
 
 - Shapes: `architecture/schema/desk-ops.md`, "Who may reach the API" (another device) and "The phone link test".
@@ -334,7 +372,7 @@ iPhone is untested (Safari takes a push only for a page added to the home screen
 - Code: `backend/request_guard/` (`policy.remote_refusal`, `middleware`, `constants_request_guard.py`);
   `frontend/link-test.html`, `frontend/src/phone_link/`; the screens: `frontend/phone.html`, `frontend/src/phone/`
   (shapes: `architecture/schema/desk-ops.md`, "Nova on the phone: the screens").
-- The phone's door: `architecture/schema/execution.md`, "Paper and Sim orders from the phone"; `backend/phone/`,
+- The phone's door: `architecture/schema/execution.md`, "Orders from the phone"; `backend/phone/`,
   `tools/set_phone_pin.py`.
 - The venue menu and the Sim strip: `frontend/src/phone/VenueMenu.tsx`, `frontend/src/phone/trade/SimStrip.tsx`;
   the Level 2 marks and the read page: `frontend/src/phone/trade/BookMarks.tsx`,

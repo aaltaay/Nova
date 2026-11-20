@@ -1,8 +1,7 @@
 /**
- * The strip under the Trade header on a venue the phone does not simply trade live (ADR 070 amendment
- * 2026-11-13, mockup v3): on Sim, the desk's playhead -- its time and day, a minute back, play or pause, a
- * minute on -- moved through the desk's own clock, so the PC's replay moves with it; on Live, the reminder
- * that the phone only looks.
+ * The strip under the Trade header on a venue that is not Paper (ADR 070 amendment 2026-11-13, mockup v3): on
+ * Sim, the desk's playhead -- its time and day, a minute back, play or pause, a minute on -- moved through the
+ * desk's own clock, so the PC's replay moves with it; on Live, that this is real money (amendment 2026-11-20).
  *
  * The strip holds no clock of its own: it reads the shared Sim clock poll (`simClockResource`) and every
  * button asks the desk, whose answer the poll takes in at once.
@@ -57,11 +56,11 @@ export function SimStrip({ symbol, clock }: { symbol: string; clock: SimClockSta
   );
 }
 
-/** On Live the phone looks and never sends: said once, over the chart. */
+/** On Live every order is real money, sent to IBKR: said once, over the chart (the frozen Live board's words). */
 export function LiveBand() {
   return (
     <div className="ph-liveband" role="status" data-testid="phone-live-band">
-      LIVE · real money <span>· look only from the phone</span>
+      LIVE · REAL MONEY <span>· orders go to IBKR</span>
     </div>
   );
 }
