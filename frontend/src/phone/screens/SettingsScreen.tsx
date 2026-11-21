@@ -3,7 +3,7 @@
  * 2026-11-18), the two locks, the Level 2 marks, and how
  * good the link to the PC is. The venue and the padlock are the desk's own; this screen only shows them
  * and asks the desk to change what the phone's door allows: the venue (the desk's own switch), the
- * padlock on Paper and Sim, and this phone's lock (ADR 070 amendment 2026-11-13).
+ * padlock (on Live with the Live PIN, amendment 2026-11-20), and this phone's lock (ADR 070 amendment 2026-11-13).
  */
 import { useEffect, useState } from 'react';
 import { Bell, BellOff, ChevronRight, Lock, LockOpen, Smartphone } from 'lucide-react';
@@ -53,12 +53,8 @@ export function SettingsScreen() {
     ? 'Waiting for the desk'
     : s.armed
       ? `${s.venue ? s.venue[0].toUpperCase() + s.venue.slice(1) : 'The desk'}'s orders can go · same as the desk`
-      : 'Nothing is sent while it is locked';
-  const padlockWhy = s.armed == null
-    ? 'Waiting for the desk to say whether the padlock is open.'
-    : !s.armed && s.trades === false
-      ? 'From the phone, Live is look only: the padlock opens on Paper and Sim. Lock still works on any venue.'
-      : undefined;
+      : s.armNeedsPin ? 'Nothing is sent · your Live PIN opens it' : 'Nothing is sent while it is locked';
+  const padlockWhy = s.armed == null ? 'Waiting for the desk to say whether the padlock is open.' : undefined;
 
   return (
     <PhoneScreen
@@ -96,7 +92,7 @@ export function SettingsScreen() {
               );
             })}
           </div>
-          <div className="ph-set__note">A tap switches the desk too. From the phone, Live is look only.</div>
+          <div className="ph-set__note">A tap switches the desk too. Changing venue locks the padlock. Live asks for your Live PIN.</div>
         </section>
 
         <section>

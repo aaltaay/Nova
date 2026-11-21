@@ -15,7 +15,7 @@ import { effectsFoot, simRowNote } from '../VenueMenu';
 import { bannerWords, rowMarkClass, sideMarks } from './BookMarks';
 import { LEVEL2_MARKS_KEY, readLevel2Marks, setLevel2Marks } from './level2MarksSwitch';
 import { simStripState } from './SimStrip';
-import { CAPTURE_GAP, LIVE_LOOK_ONLY, massiveNote, tradeVenueView } from './tradeVenueView';
+import { CAPTURE_GAP, massiveNote, tradeVenueView } from './tradeVenueView';
 
 const NOW_S = 1_790_682_311.878;
 const NOW_MS = 7_000_000;
@@ -51,11 +51,12 @@ const BIDS = [lvl(3.43, 900, 'bid'), lvl(3.42, 1200, 'bid')];
 const clock = (over: Partial<SimClockState> = {}): SimClockState => ({ sim: true, ...over });
 
 describe('what Trade draws on each venue', () => {
-  it('trades Paper live, and looks at Live with a ticket that sends nothing', () => {
-    expect(tradeVenueView('F', 'paper', null, false)).toEqual({ feedKey: 'live', quote: 'live', note: null, gap: false, blocked: null });
-    const live = tradeVenueView('F', 'live', null, false);
-    expect(live.blocked).toEqual({ why: LIVE_LOOK_ONLY, word: 'Live · look only' });
-    expect(live.note).toBeNull();
+  it('trades Paper and Live on the live book (Live since ADR 070 amendment 2026-11-20)', () => {
+    const drawn = { feedKey: 'live', quote: 'live', note: null, gap: false, blocked: null };
+    expect(tradeVenueView('F', 'paper', null, false)).toEqual(drawn);
+    expect(tradeVenueView('F', 'live', null, false)).toEqual(drawn);
+    // A Sim clock poll that has not caught up with a switch to Live never draws a replay over real money.
+    expect(tradeVenueView('F', 'live', clock({ replay_source: 'capture', replay_symbol: 'K' }), true)).toEqual(drawn);
   });
 
   it('is live at the Sim live edge, as Paper is, and trades the Sim', () => {

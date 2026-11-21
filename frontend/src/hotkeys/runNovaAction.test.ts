@@ -396,6 +396,16 @@ describe('every send names the venue of the keypress (#1283)', () => {
     expect(cancelAllOrdersForSymbol.mock.calls[0][2]).toBe('paper');
   });
 
+  it("keeps the caller's own venue: the phone names the one on its screen, whatever the desk's status read (PR #1346)", async () => {
+    desk.venue = 'live'; // the desk's status saw a switch to Live before the phone's own heartbeat did
+
+    await runNovaAction(action({ kind: 'buy_market', params: { shares: 1 } }), runtime({ venue: 'paper' }));
+    await runNovaAction(action({ kind: 'cancel_symbol' }), runtime({ venue: 'paper' }));
+
+    expect(placeIbkrOrder.mock.calls[0][0].venue).toBe('paper');
+    expect(cancelAllOrdersForSymbol.mock.calls[0][2]).toBe('paper');
+  });
+
   it('names no venue before any status has answered: the door reads the desk as it always did', async () => {
     desk.venue = null;
 

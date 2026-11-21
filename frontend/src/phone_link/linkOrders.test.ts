@@ -32,8 +32,8 @@ describe("an order's stamp", () => {
 
 describe("Nova's words for a refusal", () => {
   it('reads the phone door, the request guard and the order door', () => {
-    expect(refusalText(409, { detail: { reason: 'PHONE_LIVE_LOOK_ONLY', error: 'The desk is on Live: from the phone, Live is look only. Send Live orders from the PC. Nothing was sent.' } }))
-      .toBe('The desk is on Live: from the phone, Live is look only. Send Live orders from the PC. Nothing was sent.');
+    expect(refusalText(403, { detail: { reason: 'ARM_PIN_LOCKED', error: 'Too many wrong PINs -- Live arming is locked for 300 s' } }))
+      .toBe('Too many wrong PINs -- Live arming is locked for 300 s');
     expect(refusalText(403, { detail: 'Nova is view-only from another device', reason: 'REMOTE_VIEW_ONLY' })).toBe('Nova is view-only from another device');
     expect(refusalText(200, { ok: false, error: 'Your Level 2 was 1.2 s behind', reason_code: 'VIEW_STALE' })).toBe('Your Level 2 was 1.2 s behind');
     expect(refusalText(422, { detail: [{ msg: 'Field required' }] })).toBe('Nova did not accept that order as written.');
@@ -58,7 +58,9 @@ describe('why the order buttons are off', () => {
     expect(blockedWhy(null, true)).toBe('Nova could not be reached.');
     expect(blockedWhy({ ...status, pin_set: false }, true)).toContain('tools/set_phone_pin.py');
     expect(blockedWhy({ ...status, unlocked: false }, true)).toBe('Locked. Enter your phone PIN.');
-    expect(blockedWhy({ ...status, venue: 'live', paper: false, trades: false }, true)).toContain('look only');
+    // The link test is a measuring tool: Paper and Sim only, even now the phone's Trade screen trades Live.
+    expect(blockedWhy({ ...status, venue: 'live', paper: false, trades: true }, true)).toContain('Paper and Sim orders only');
+    expect(blockedWhy({ ...status, venue: 'live', paper: false, trades: false }, true)).toContain('Paper and Sim orders only');
     // Sim trades from the phone: the door says so in `trades`.
     expect(blockedWhy({ ...status, venue: 'sim', paper: false, trades: true }, true)).toBeNull();
     expect(blockedWhy(status, false)).toContain('Press Start');
@@ -155,8 +157,8 @@ describe("the door, as the phone's screens use it", () => {
     expect(fetchMock.mock.calls[0][0]).toBe('https://pc.test:8443/api/phone/order/41');
     expect(fetchMock.mock.calls[0][1]?.method).toBe('DELETE');
 
-    fetchMock.mockImplementationOnce(() => answer(409, { detail: { reason: 'PHONE_LIVE_LOOK_ONLY', error: 'The desk is on Live: from the phone, Live is look only. Send Live orders from the PC. Nothing was sent.' } }));
-    expect(await door.cancelOrder(41, 'ABCD Sell 250')).toMatchObject({ ok: false, text: 'The desk is on Live: from the phone, Live is look only. Send Live orders from the PC. Nothing was sent.' });
+    fetchMock.mockImplementationOnce(() => answer(200, { ok: false, reason_code: 'VENUE_CHANGED', error: 'The desk moved from Live to Paper since the tap. Nothing was sent.' }));
+    expect(await door.cancelOrder(41, 'ABCD Sell 250')).toMatchObject({ ok: false, text: 'The desk moved from Live to Paper since the tap. Nothing was sent.' });
   });
 
   it('names the venue the tap was on, so a desk that moved since refuses instead of acting on the other account', async () => {
@@ -174,6 +176,47 @@ describe("the door, as the phone's screens use it", () => {
     expect(fetchMock.mock.calls[3][0]).toBe('https://pc.test:8443/api/phone/orders?symbol=ABCD');
     await door.order(ctx(), 'SELL', 5, null);
     expect(JSON.parse(String(fetchMock.mock.calls[4][1]?.body))).not.toHaveProperty('venue');
+  });
+
+  it('says on every write the venue the screen shows, and nothing before it shows one (PR #1346)', async () => {
+    const fetchMock = vi.fn((_url: string, _init?: RequestInit) => answer(200, { ...STATUS, token: 'tok-5' }));
+    vi.stubGlobal('fetch', fetchMock);
+    const door = new PhoneDoor('https://pc.test:8443');
+    await door.unlock('123456');
+    expect(door.sessionHeaders()).toEqual({ 'X-Nova-Phone-Session': 'tok-5' });
+
+    door.showing('paper');
+    await door.cancelOrder(41, 'ABCD Sell 250', 'paper');
+    const sent = fetchMock.mock.calls[1][1]?.headers as Record<string, string>;
+    expect(sent).toMatchObject({ 'X-Nova-Phone-Session': 'tok-5', 'X-Nova-Phone-Venue': 'paper' });
+    // The desk's own ticket code sends through the same headers.
+    expect(door.sessionHeaders()).toEqual({ 'X-Nova-Phone-Session': 'tok-5', 'X-Nova-Phone-Venue': 'paper' });
+
+    door.showing(null);
+    expect(door.sessionHeaders()).toEqual({ 'X-Nova-Phone-Session': 'tok-5' });
+  });
+
+  it('opens the padlock with the Live PIN only when one is typed, and never sends a PIN to lock it', async () => {
+    const fetchMock = vi.fn((_url: string, _init?: RequestInit) => answer(200, { ...STATUS, venue: 'live', paper: false, trades: true, armed: true }));
+    vi.stubGlobal('fetch', fetchMock);
+    const door = new PhoneDoor('https://pc.test:8443');
+    const opened = await door.arm(true, '864202');
+    expect(fetchMock.mock.calls[0][0]).toBe('https://pc.test:8443/api/phone/arm');
+    expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body))).toEqual({ armed: true, pin: '864202' });
+    expect(opened).toMatchObject({ ok: true, text: 'The padlock is open on Live.' });
+
+    fetchMock.mockImplementationOnce(() => answer(200, { ...STATUS, armed: false }));
+    expect(await door.arm(false, '864202')).toMatchObject({ ok: true, text: 'The padlock is closed.' });
+    expect(JSON.parse(String(fetchMock.mock.calls[1][1]?.body))).toEqual({ armed: false });
+
+    // Paper and Sim open without one.
+    fetchMock.mockImplementationOnce(() => answer(200, { ...STATUS, armed: true }));
+    expect(await door.arm(true)).toMatchObject({ ok: true, text: 'The padlock is open.' });
+    expect(JSON.parse(String(fetchMock.mock.calls[2][1]?.body))).toEqual({ armed: true });
+
+    // A wrong Live PIN says the desk's own words.
+    fetchMock.mockImplementationOnce(() => answer(403, { detail: { reason: 'ARM_PIN_INVALID', error: 'Wrong PIN' } }));
+    expect(await door.arm(true, '000000')).toMatchObject({ ok: false, text: 'Wrong PIN' });
   });
 
   it("moves the desk's venue through the door and says what the desk cancelled", async () => {

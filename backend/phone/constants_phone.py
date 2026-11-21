@@ -11,15 +11,19 @@ PHONE_API_PREFIX = "/api/phone"
 PHONE_PIN_HASH_ENV = "NOVA_PHONE_PIN_HASH"
 # The header an unlocked phone sends with every write.
 PHONE_SESSION_HEADER = "X-Nova-Phone-Session"
+# The venue the phone's screen shows, sent with every write (amendment 2026-11-20, review of PR #1346): a write that
+# names another venue is refused, and a page that does not send it (one older than Live from the phone) only looks at
+# Live, as it did.
+PHONE_SHOWN_VENUE_HEADER = "X-Nova-Phone-Venue"
 # How long one unlock lasts. A backend restart ends it sooner: the session lives in memory.
 PHONE_SESSION_SEC = 8 * 3600.0
 # Wrong PINs in a row before the lockout, and how long it lasts (the Live PIN's numbers, counted apart).
 PHONE_PIN_MAX_FAILURES = 5
 PHONE_PIN_LOCKOUT_SEC = 300.0
 
-# The venues the phone trades (amendment 2026-11-13: Sim too). On Live it looks only.
+# The phone trades the desk's venue, whichever it is (Sim since 2026-11-13, Live since 2026-11-20, after the Live
+# PIN opens the padlock). ``paper`` in the status names this one.
 PHONE_VENUE = "paper"
-PHONE_TRADE_VENUES = ("paper", "sim")
 # What a phone may ask of the desk's Sim clock: pause / play, and a step to a minute (the desk strip's).
 PHONE_SIM_CLOCK_KEYS = frozenset({"paused", "minute_from_open", "symbol"})
 
@@ -28,8 +32,9 @@ PHONE_PIN_NOT_SET = "PHONE_PIN_NOT_SET"
 PHONE_PIN_INVALID = "PHONE_PIN_INVALID"
 PHONE_PIN_LOCKED = "PHONE_PIN_LOCKED"
 PHONE_LOCKED = "PHONE_LOCKED"
-PHONE_LIVE_LOOK_ONLY = "PHONE_LIVE_LOOK_ONLY"
 PHONE_NO_VIEW = "PHONE_NO_VIEW"
+PHONE_VENUE_MISMATCH = "PHONE_VENUE_MISMATCH"
+PHONE_PAGE_OUTDATED = "PHONE_PAGE_OUTDATED"
 
 
 def is_phone_path(path: str) -> bool:

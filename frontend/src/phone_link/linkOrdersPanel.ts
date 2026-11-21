@@ -46,8 +46,11 @@ export function blockedWhy(status: PhoneStatus | null, hasRun: boolean): string 
   if (!status) return 'Nova could not be reached.';
   if (!status.pin_set) return 'No phone PIN is set. On the PC: py -3 tools/set_phone_pin.py';
   if (!status.unlocked) return 'Locked. Enter your phone PIN.';
-  // Paper and Sim trade from the phone; Live is look only (ADR 070 amendment 2026-11-13).
-  if (!(status.trades ?? status.paper)) return `The desk is on ${status.venue}: from the phone, Live is look only. Switch the desk to Paper or Sim.`;
+  // The link test is a measuring tool: it sends Paper and Sim orders only. Live goes from the Trade screen
+  // (ADR 070 amendment 2026-11-20, decision 50).
+  if (status.venue === 'live' || !(status.trades ?? status.paper)) {
+    return `The desk is on ${venueWord(status.venue)}: the link test sends Paper and Sim orders only. Trade Live from the phone's Trade screen.`;
+  }
   if (!hasRun) return 'Press Start above first: an order needs the measured clock and a live Level 2.';
   return null;
 }

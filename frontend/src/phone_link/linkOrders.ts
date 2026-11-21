@@ -10,6 +10,8 @@
  */
 
 const SESSION_HEADER = 'X-Nova-Phone-Session';
+/** The venue the phone's screen shows: every write carries it, and the door refuses one that names another (PR #1346). */
+export const SHOWN_VENUE_HEADER = 'X-Nova-Phone-Venue';
 const TIMEOUT_MS = 8_000;
 
 /** The venue a tap was on, as the door reads it; undefined (the desk's venue at receipt) for anything else. */
@@ -41,9 +43,11 @@ export interface PhoneStatus {
   expires_at: number | null;
   venue: string;
   paper: boolean;
-  /** Whether the phone may send orders on the desk's venue now: Paper or Sim, never Live. */
+  /** Whether the phone may send orders on the desk's venue now: every venue since 2026-11-20 (an older backend said false on Live). */
   trades?: boolean;
   armed: boolean;
+  /** Opening the padlock needs the Live PIN: the desk is on Live (ADR 070 amendment 2026-11-20). */
+  arm_requires_pin?: boolean;
   /** The PC's clock when it answered, epoch seconds. */
   now?: number;
 }
@@ -140,19 +144,36 @@ export function closingOrder(row: { qty?: unknown; position_side?: unknown } | u
 
 export class PhoneDoor {
   private token: string | null = null;
+  private shown: string | null = null;
   private readonly apiBase: string;
 
   constructor(apiBase: string) {
     this.apiBase = apiBase;
   }
 
+  /**
+   * The venue the phone's screen shows now (null: none yet). Every write says it (`X-Nova-Phone-Venue`), so the door
+   * refuses one that names another venue: a button drawn on Paper never sends to Live. A page that says nothing is
+   * judged as one older than Live from the phone, which only looks at Live.
+   */
+  showing(venue: string | null): void {
+    this.shown = venue;
+  }
+
+  /** The headers every request through this door carries: the session, and the venue the screen shows. */
+  private headers(): Record<string, string> {
+    const headers: Record<string, string> = {};
+    if (this.token) headers[SESSION_HEADER] = this.token;
+    if (this.shown) headers[SHOWN_VENUE_HEADER] = this.shown;
+    return headers;
+  }
+
   private async call(method: string, path: string, body?: unknown): Promise<{ status: number; body: unknown; ms: number }> {
     const controller = new AbortController();
     const timeout = window.setTimeout(() => controller.abort(), TIMEOUT_MS);
     const started = performance.now();
-    const headers: Record<string, string> = {};
+    const headers = this.headers();
     if (body !== undefined) headers['Content-Type'] = 'application/json';
-    if (this.token) headers[SESSION_HEADER] = this.token;
     try {
       const res = await fetch(`${this.apiBase}${path}`, {
         method, headers, cache: 'no-store', signal: controller.signal,
@@ -186,12 +207,12 @@ export class PhoneDoor {
   }
 
   /**
-   * The header a write through the phone's door carries, for the desk's own ticket code (`ibkr/orderDoor`):
-   * the Trade screen sends an order with the function the desk's ticket sends it with. Empty while locked,
-   * and the backend then refuses the write `PHONE_LOCKED`.
+   * The headers a write through the phone's door carries, for the desk's own ticket code (`ibkr/orderDoor`): the
+   * Trade screen sends an order with the function the desk's ticket sends it with. The session (none while locked,
+   * and the backend then refuses the write `PHONE_LOCKED`) and the venue the screen shows.
    */
   sessionHeaders(): Record<string, string> {
-    return this.token ? { [SESSION_HEADER]: this.token } : {};
+    return this.headers();
   }
 
   /**
@@ -238,7 +259,7 @@ export class PhoneDoor {
   async unlock(pin: string): Promise<Answer> {
     const answer = await this.ask('POST', '/api/phone/unlock', { pin }, (b) => {
       this.token = typeof b.token === 'string' ? b.token : null;
-      return 'Unlocked: Paper and Sim orders.';
+      return 'Unlocked.';
     });
     return answer;
   }
@@ -250,8 +271,16 @@ export class PhoneDoor {
     });
   }
 
-  arm(armed: boolean): Promise<Answer> {
-    return this.ask('POST', '/api/phone/arm', { armed }, () => (armed ? 'The padlock is open.' : 'The padlock is closed.'));
+  /**
+   * Open or close the desk's padlock. `pin` is the Live PIN, sent only to open it on Live, where the PC checks it
+   * with its own rule (ADR 070 amendment 2026-11-20); it is kept nowhere here.
+   */
+  arm(armed: boolean, pin?: string): Promise<Answer> {
+    const body = armed && pin ? { armed, pin } : { armed };
+    return this.ask('POST', '/api/phone/arm', body, (b) => {
+      if (!armed) return 'The padlock is closed.';
+      return b.venue === 'live' ? 'The padlock is open on Live.' : 'The padlock is open.';
+    });
   }
 
   async order(ctx: OrderContext, side: 'BUY' | 'SELL', qty: number, limitPrice: number | null, intent?: 'flatten'): Promise<Answer> {

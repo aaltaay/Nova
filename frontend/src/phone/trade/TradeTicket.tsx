@@ -5,8 +5,8 @@
  * Every Quick button is one of the desk's one-tap actions (tradeActions.ts); what a button will send is
  * written on it. Custom builds the order body the desk's ticket builds. A locked padlock greys the
  * buttons and answers a tap with NOT SENT; a view that is behind holds the buys and says so on them. On a
- * venue the phone does not trade from here (Live, or a Sim replay the phone does not draw) every button is
- * off and says why (`tradeVenueView`).
+ * Sim replay the phone does not draw every button is off and says why (`tradeVenueView`). On Live every
+ * button says LIVE and no size goes over the desk's Live share limit (`liveTicket`, amendment 2026-11-20).
  */
 import { useCallback, useState } from 'react';
 import { Lock } from 'lucide-react';
@@ -30,6 +30,7 @@ import {
   sellShares,
   stepQty,
 } from './tradeActions';
+import { limitBinds, liveLimitWords, liveSellWords, quickSizeUnder, shareCount, sizesUnder, underCap } from './liveTicket';
 import { SharesSheet, Stepper } from './TradeTicketParts';
 import type { PhoneTrade } from './usePhoneTrade';
 
@@ -39,7 +40,8 @@ type OrderKind = 'MKT' | 'LMT' | 'STP';
 
 const MODE_KEY = 'nova.phone.trade.mode';
 const SIZE_KEY = 'nova.phone.trade.size';
-const SIZES = [100, 500, 1000] as const;
+/** Live's Quick size, kept apart so a size chosen under the Live limit never changes Paper's. */
+const LIVE_SIZE_KEY = 'nova.phone.trade.size.live';
 const MAX_SHARES = 99_999;
 const KIND_WORD: Record<OrderKind, string> = { MKT: 'Market', LMT: 'Limit', STP: 'Stop' };
 const HELD_WORD = 'held · feed behind';
@@ -48,8 +50,8 @@ function readMode(): Mode {
   return readPref<Mode>(MODE_KEY, 'Quick', (raw) => (raw === 'Quick' || raw === 'Custom' ? raw : null));
 }
 
-function readSize(): number {
-  return readPref<number>(SIZE_KEY, 100, (raw) => (typeof raw === 'number' && Number.isInteger(raw) && raw >= 1 && raw <= MAX_SHARES ? raw : null));
+function readSize(key: string, fallback: number): number {
+  return readPref<number>(key, fallback, (raw) => (typeof raw === 'number' && Number.isInteger(raw) && raw >= 1 && raw <= MAX_SHARES ? raw : null));
 }
 
 export function TradeTicket({ trade, blocked = null, buyingPower, onFlatten, onCancelAll }: {
@@ -63,7 +65,8 @@ export function TradeTicket({ trade, blocked = null, buyingPower, onFlatten, onC
 }) {
   const session = usePhoneSession();
   const [mode, setModeState] = useState<Mode>(readMode);
-  const [size, setSizeState] = useState<number>(readSize);
+  const [paperSize, setPaperSize] = useState<number>(() => readSize(SIZE_KEY, 100));
+  const [liveSize, setLiveSize] = useState<number>(() => readSize(LIVE_SIZE_KEY, 1));
   const [typing, setTyping] = useState<'quick' | 'custom' | null>(null);
   const [side, setSide] = useState<Side>('BUY');
   const [kind, setKind] = useState<OrderKind>('LMT');
@@ -76,14 +79,21 @@ export function TradeTicket({ trade, blocked = null, buyingPower, onFlatten, onC
   const offVenue = blocked?.why ?? null;
   const locked = armed === false;
   const long = heldQty > 0 ? heldQty : 0;
+  // Live: real money. Every button says so, and no size goes over the desk's Live share limit (null when off).
+  const live = session.venue === 'live';
+  const cap = live ? trade.qtyCap : null;
+  const size = live ? quickSizeUnder(liveSize, cap) : paperSize;
+  const sizes = sizesUnder(cap);
+  const capWords = limitBinds(cap) ? liveLimitWords(cap) : null;
+  const liveWord = live ? 'LIVE ' : '';
 
   const setMode = (next: Mode): void => {
     writePref(MODE_KEY, next);
     setModeState(next);
   };
   const setSize = (next: number): void => {
-    writePref(SIZE_KEY, next);
-    setSizeState(next);
+    writePref(live ? LIVE_SIZE_KEY : SIZE_KEY, next);
+    (live ? setLiveSize : setPaperSize)(next);
   };
 
   /** Every order button answers a locked padlock the same way: nothing goes, and the banner opens it. */
@@ -128,7 +138,12 @@ export function TradeTicket({ trade, blocked = null, buyingPower, onFlatten, onC
     const shares = percent === 50 ? half : all;
     const why = sellWhy(shares, 'Half');
     const part = percent === 50 ? '½' : 'ALL';
-    const label = `Sell ${shares ?? ''} ${at === 'ask' ? 'at the Ask' : 'at the Bid'}`.replace('  ', ' ');
+    // On Live the door cuts the sell to the limit: the button and the banner say the shares that go.
+    const sent = shares != null ? underCap(shares, cap) : null;
+    const label = `Sell ${sent ?? ''} ${at === 'ask' ? 'at the Ask' : 'at the Bid'}`.replace('  ', ' ');
+    const words = live && shares != null && !why
+      ? liveSellWords(shares, cap)
+      : `SELL ${part}${shares != null ? ` ${shares.toLocaleString('en-US')}` : ''}`;
     return (
       <button
         key={`${percent}-${at}`}
@@ -139,21 +154,34 @@ export function TradeTicket({ trade, blocked = null, buyingPower, onFlatten, onC
         data-testid={`phone-sell-${percent}-${at}`}
         onClick={guarded(() => trade.act(label, at === 'ask' ? sellAtAsk(percent) : sellAtBid(percent)))}
       >
-        <b>SELL {part}{shares != null ? ` ${shares.toLocaleString('en-US')}` : ''}</b>
+        <b>{words}</b>
         <i>{why ? (blocked ? blocked.word : long > 0 ? 'needs 2 shares' : 'no shares') : at === 'ask' ? `at Ask ${priceWord(ask)} · rests` : `hit Bid ${priceWord(bid)} · now`}</i>
       </button>
     );
   };
 
-  const sizeLabel = SIZES.includes(size as (typeof SIZES)[number]) ? 'Custom' : size.toLocaleString('en-US');
+  const sizeLabel = sizes.includes(size) ? 'Custom' : size.toLocaleString('en-US');
+  // Under a Live limit that binds the row is the sizes under it and the limit's words (the frozen Live board).
+  const sizeRow = capWords ? (
+    <div className="ph-trade__liverow">
+      <div className="ph-trade__sizes" role="group" aria-label="Shares to buy" data-count={sizes.length}>
+        {sizes.map((n) => (
+          <button key={n} type="button" aria-pressed={n === size} onClick={() => setSize(n)}>{shareCount(n)}</button>
+        ))}
+      </div>
+      <span className="ph-trade__limit" data-testid="phone-live-limit">{capWords}</span>
+    </div>
+  ) : (
+    <div className="ph-trade__sizes" role="group" aria-label="Shares to buy">
+      {sizes.map((n) => (
+        <button key={n} type="button" aria-pressed={n === size} onClick={() => setSize(n)}>{n}</button>
+      ))}
+      <button type="button" aria-pressed={sizeLabel !== 'Custom'} aria-label="Another number of shares" onClick={() => setTyping('quick')}>{sizeLabel}</button>
+    </div>
+  );
   const quick = (
     <>
-      <div className="ph-trade__sizes" role="group" aria-label="Shares to buy">
-        {SIZES.map((n) => (
-          <button key={n} type="button" aria-pressed={n === size} onClick={() => setSize(n)}>{n}</button>
-        ))}
-        <button type="button" aria-pressed={sizeLabel !== 'Custom'} aria-label="Another number of shares" onClick={() => setTyping('quick')}>{sizeLabel}</button>
-      </div>
+      {sizeRow}
       <div className="ph-trade__gridwrap">
         <div className="ph-trade__grid" data-locked={locked ? 'true' : 'false'}>
           <button
@@ -164,7 +192,7 @@ export function TradeTicket({ trade, blocked = null, buyingPower, onFlatten, onC
             data-testid="phone-buy-market"
             onClick={guarded(() => trade.act(`Buy ${size} market`, buyMarket(size)))}
           >
-            <b>BUY {size.toLocaleString('en-US')}</b>
+            <b>{liveWord}BUY {size.toLocaleString('en-US')}</b>
             <i>{buyWhy ? (blocked ? blocked.word : HELD_WORD) : 'market · fills now'}</i>
           </button>
           <button
@@ -175,7 +203,7 @@ export function TradeTicket({ trade, blocked = null, buyingPower, onFlatten, onC
             data-testid="phone-buy-limit"
             onClick={guarded(() => trade.act(`Buy ${size} limit`, buyLimit(size)))}
           >
-            <b>BUY {size.toLocaleString('en-US')}</b>
+            <b>{liveWord}BUY {size.toLocaleString('en-US')}</b>
             <i>{buyWhy ? (blocked ? blocked.word : HELD_WORD) : `limit ${priceWord(buyLimitPrice(ask))} · ${BUY_LIMIT_OFFSET_WORD}`}</i>
           </button>
           {/* The grid fills by column: the halves, then the whole; each column the Ask over the Bid. */}
@@ -219,7 +247,10 @@ export function TradeTicket({ trade, blocked = null, buyingPower, onFlatten, onC
       : seedStopPrice(side, buy ? ask : bid, TRADE_DEFAULT_STOP_OFFSET_PCT);
   const at = buy ? ask : bid;
   const price = kind === 'MKT' ? followed : handPrice ?? (followed != null && at != null ? roundToTick(followed, at) : followed);
-  const qty = handQty ?? (buy ? size : all ?? size);
+  // On Live no size goes over the desk's limit: the stepper stops there and says why.
+  const most = cap ?? MAX_SHARES;
+  const mostWhy = cap != null ? liveLimitWords(cap) : `${MAX_SHARES.toLocaleString('en-US')} shares is the most this ticket takes.`;
+  const qty = underCap(handQty ?? (buy ? size : all ?? size), cap);
   const stepPrice = (direction: 1 | -1) => (): void => {
     if (price == null) return;
     const next = roundToTick(price + direction * priceStep(price), price);
@@ -244,7 +275,7 @@ export function TradeTicket({ trade, blocked = null, buyingPower, onFlatten, onC
     ?? (buy && kind !== 'STP' ? buyLag : null)
     ?? (!buy && !long ? noShares : null)
     ?? (kind !== 'MKT' && price == null ? 'Waiting for Level 2 to price it.' : null);
-  const sendWords = `${buy ? 'Buy' : 'Sell'} ${qty.toLocaleString('en-US')} · ${kind === 'MKT' ? 'Market' : `${KIND_WORD[kind]} ${priceWord(price)}`}`;
+  const sendWords = `${live ? 'LIVE · ' : ''}${buy ? 'Buy' : 'Sell'} ${qty.toLocaleString('en-US')} · ${kind === 'MKT' ? 'Market' : `${KIND_WORD[kind]} ${priceWord(price)}`}`;
   const sendCustom = guarded(() => {
     const payload: ManualOrderPayload = {
       symbol, side, qty, order_type: kind, outside_rth: outside,
@@ -253,8 +284,10 @@ export function TradeTicket({ trade, blocked = null, buyingPower, onFlatten, onC
     };
     trade.place(`${buy ? 'Buy' : 'Sell'} ${qty} ${KIND_WORD[kind].toLowerCase()}${kind === 'MKT' ? '' : ` ${priceWord(price)}`}`, payload, kind === 'LMT' ? at : null);
   });
-  const chips: readonly { name: string; value: number | null; on: boolean }[] = buy
-    ? [...SIZES.map((n) => ({ name: String(n), value: n as number, on: qty === n })), { name: 'Custom', value: null, on: !SIZES.includes(qty as (typeof SIZES)[number]) }]
+  const chips: readonly { name: string; value: number | null; on: boolean }[] = capWords
+    ? sizes.map((n) => ({ name: shareCount(n), value: n, on: qty === n }))
+    : buy
+    ? [...sizes.map((n) => ({ name: String(n), value: n, on: qty === n })), { name: 'Custom', value: null, on: !sizes.includes(qty) }]
     : [
         { name: half != null ? `½ ${half}` : '½', value: half, on: half != null && qty === half },
         { name: all != null ? `All ${all}` : 'All', value: all, on: all != null && qty === all },
@@ -290,9 +323,9 @@ export function TradeTicket({ trade, blocked = null, buyingPower, onFlatten, onC
           name="Quantity"
           label="Qty"
           text={qty.toLocaleString('en-US')}
-          why={qty > 1 ? `${MAX_SHARES.toLocaleString('en-US')} shares is the most this ticket takes.` : 'One share is the least.'}
+          why={qty >= most ? mostWhy : 'One share is the least.'}
           onDown={qty > 1 ? () => setHandQty(stepQty(qty, -1)) : undefined}
-          onUp={qty < MAX_SHARES ? () => setHandQty(Math.min(MAX_SHARES, stepQty(qty, 1))) : undefined}
+          onUp={qty < most ? () => setHandQty(Math.min(most, stepQty(qty, 1))) : undefined}
         />
       </div>
       <div className="ph-trade__chips">

@@ -101,6 +101,15 @@ html, body {
   min-width: 0;
   min-height: 0;
 }
+/* Real money on screen (the frozen Live board): the edge in the Live colour, drawn over the screen and taking no room. */
+.ph-screen[data-live='true']::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 9;
+  border: 2px solid var(--ph-good);
+  pointer-events: none;
+}
 
 .ph-body {
   flex: 1 1 0;
@@ -520,6 +529,10 @@ html, body {
 .ph-pin__dots i.is-on { background: var(--ph-text); border-color: var(--ph-text); }
 .ph-pin__words { min-height: 30px; max-width: 300px; text-align: center; font-size: 12px; color: var(--ph-muted); }
 .ph-pin__words.is-bad { color: var(--ph-bad-soft); }
+/* The Live padlock's PIN (ADR 070 amendment 2026-11-20) wears the Live colour, as the venue pill does. */
+.ph-sheet[data-use='live'] .ph-pin { border-top: 2px solid var(--ph-good); }
+.ph-sheet[data-use='live'] .ph-pin__icon { background: var(--ph-good-bg); color: var(--ph-good); }
+.ph-sheet[data-use='live'] .ph-pin__title { color: var(--ph-good); }
 .ph-pin__keys {
   width: 100%;
   max-width: 320px;

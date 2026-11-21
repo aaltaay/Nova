@@ -206,15 +206,17 @@ export function PhoneBannerView() {
 }
 
 /** One screen: its header, its body, the bottom bar, and the banner over them. */
-export function PhoneScreen({ name, header, tab, bar = true, children }: {
+export function PhoneScreen({ name, header, tab, bar = true, live = false, children }: {
   name: string;
   header: ReactNode;
   tab: PhoneTab | null;
   bar?: boolean;
+  /** Real money on this screen: its edge wears the Live colour (the frozen Live board, ADR 070 amendment 2026-11-20). */
+  live?: boolean;
   children: ReactNode;
 }) {
   return (
-    <div className="ph-screen" data-testid={`phone-screen-${name}`}>
+    <div className="ph-screen" data-testid={`phone-screen-${name}`} data-live={live ? 'true' : undefined}>
       {header}
       <NoLinkLine />
       <div className="ph-body">{children}</div>

@@ -1,14 +1,16 @@
 /**
  * What every phone screen shares (ADR 070): the door to the desk (`/api/phone`), the heartbeat that
- * reads it, the banner that answers every tap, and the PIN sheet. The phone decides nothing here:
+ * reads it, the banner that answers every tap, and the PIN sheets. The phone decides nothing here:
  * the venue, the padlock and every refusal are the desk's, shown as the desk words them. A venue switch
- * and a Sim step go through the desk's own handlers, so the desk and the phone move together.
+ * and a Sim step go through the desk's own handlers, so the desk and the phone move together. On Live the
+ * padlock opens with the Live PIN, typed here and judged by the PC (amendment 2026-11-20).
  */
 import {
   createContext,
   useCallback,
   useContext,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -23,7 +25,7 @@ import { PhoneDoor, type Answer, type SimClockMove } from '../phone_link';
 import { simClockResource, type SimClockState } from '../sim';
 import { setDeskClockOffsetMs } from '../utils/deskClock';
 import { createPhoneLink, linkIsDown, type PhoneLinkView } from './phoneLink';
-import { PhonePinSheet } from './PhonePinSheet';
+import { PhonePinSheet, type PinUse } from './PhonePinSheet';
 
 export type BannerTone = 'sending' | 'done' | 'sent' | 'filled' | 'refused';
 
@@ -50,8 +52,10 @@ export interface PhoneSessionValue {
   venue: Venue | null;
   /** The desk's padlock: true when orders can go. Null before the first answer. */
   armed: boolean | null;
-  /** The phone may send orders on the desk's venue: Paper or Sim, never Live. Null before the first answer. */
+  /** The phone may send orders on the desk's venue (every venue since 2026-11-20). Null before the first answer. */
   trades: boolean | null;
+  /** Opening the padlock asks for the Live PIN: the desk is on Live. */
+  armNeedsPin: boolean;
   /** This phone holds a session the backend still accepts. */
   unlocked: boolean;
   /** When that session ends, epoch seconds. */
@@ -60,7 +64,10 @@ export interface PhoneSessionValue {
   pinSet: boolean | null;
   banner: PhoneBanner | null;
   dismissBanner: () => void;
-  /** Open or close the desk's padlock. Asks for the PIN first when this phone is locked. */
+  /**
+   * Open or close the desk's padlock. Asks for the PIN first when this phone is locked; on Live, opening it asks
+   * for the Live PIN, which goes to the PC with the request (the PC's own rule judges it).
+   */
   setArmed: (armed: boolean) => void;
   /** End this phone's session. */
   lockPhone: () => void;
@@ -109,7 +116,8 @@ export function PhoneSessionProvider({ children }: { children: ReactNode }) {
   const link = useMemo(() => createPhoneLink(door), [door]);
   const view = useSyncExternalStore(link.subscribe, link.get);
   const [banner, setBanner] = useState<PhoneBanner | null>(null);
-  const [pinOpen, setPinOpen] = useState(false);
+  /** Which PIN sheet is up: the phone's own unlock, or the Live padlock's. */
+  const [pinFor, setPinFor] = useState<PinUse | null>(null);
   const afterPin = useRef<(() => void) | null>(null);
   const doneTimer = useRef<number | null>(null);
   const onItsWay = useRef(false);
@@ -162,10 +170,15 @@ export function PhoneSessionProvider({ children }: { children: ReactNode }) {
 
   const status = view.status;
   const unlocked = status?.unlocked === true && door.hasSession();
+  // Every write says the venue the screen shows (review of PR #1346), set before it is painted.
+  const shownVenue = asVenue(status?.venue);
+  useLayoutEffect(() => {
+    door.showing(shownVenue);
+  }, [door, shownVenue]);
 
   const askPin = useCallback((then?: () => void) => {
     afterPin.current = then ?? null;
-    setPinOpen(true);
+    setPinFor('unlock');
   }, []);
 
   const send = useCallback((label: string, write: (d: PhoneDoor) => Promise<Answer>) => {
@@ -220,9 +233,18 @@ export function PhoneSessionProvider({ children }: { children: ReactNode }) {
     }
   }, [askPin, door, reread, show, view.offsetMs]);
 
+  const armNeedsPin = status?.arm_requires_pin === true;
   const setArmed = useCallback((armed: boolean) => {
+    // On Live the padlock opens only with the Live PIN: its own sheet sends it with the request. A locked phone
+    // is unlocked first, with its own PIN, as for every other write.
+    if (armed && armNeedsPin) {
+      const askLive = (): void => setPinFor('live');
+      if (door.hasSession()) askLive();
+      else askPin(askLive);
+      return;
+    }
     send(armed ? 'Open the padlock' : 'Lock the padlock', (d) => d.arm(armed));
-  }, [send]);
+  }, [armNeedsPin, askPin, door, send]);
 
   const moveVenue = useCallback((next: Venue) => {
     send(`Switch to ${VENUE_LABEL[next]}`, (d) => d.moveVenue(next));
@@ -248,20 +270,35 @@ export function PhoneSessionProvider({ children }: { children: ReactNode }) {
   }, [door, link, show]);
 
   const closePin = useCallback((ok: boolean) => {
-    setPinOpen(false);
+    setPinFor(null);
     const then = afterPin.current;
     afterPin.current = null;
     link.refresh();
     if (ok && then) then();
   }, [link]);
 
+  /**
+   * The Live PIN sheet closed: the desk opened its padlock (`done`), or the operator cancelled. The banner names the
+   * venue the desk answered from, so a desk that left Live while the PIN was typed is not said to be open on Live.
+   */
+  const closeLivePin = useCallback((done: boolean, answered?: { venue: string }) => {
+    setPinFor(null);
+    reread();
+    if (!done) return;
+    const where = asVenue(answered?.venue);
+    show(where === 'live' || where == null
+      ? { tone: 'done', title: 'Padlock open · LIVE', note: 'Real money: orders go to IBKR. Lock it when you put the phone down.' }
+      : { tone: 'done', title: `Padlock open · ${VENUE_LABEL[where]}`, note: `The desk is on ${VENUE_LABEL[where]} now.` });
+  }, [reread, show]);
+
   const value = useMemo<PhoneSessionValue>(() => ({
     door,
     link: view,
-    venue: asVenue(status?.venue),
+    venue: shownVenue,
     armed: status ? status.armed : null,
     // An older backend says `paper` only: it traded Paper alone.
     trades: status ? status.trades ?? status.paper : null,
+    armNeedsPin,
     unlocked,
     expiresAt: unlocked ? status?.expires_at ?? null : null,
     pinSet: status ? status.pin_set : null,
@@ -279,12 +316,20 @@ export function PhoneSessionProvider({ children }: { children: ReactNode }) {
     closeNoLink,
     openNoLink,
     retryLink,
-  }), [askPin, banner, closeNoLink, door, lockPhone, moveSim, moveVenue, noLinkOpen, openNoLink, order, retryLink, send, setArmed, show, status, unlocked, view]);
+  }), [armNeedsPin, askPin, banner, closeNoLink, door, lockPhone, moveSim, moveVenue, noLinkOpen, openNoLink, order, retryLink, send, setArmed, show, shownVenue, status, unlocked, view]);
 
   return (
     <Ctx.Provider value={value}>
       {children}
-      {pinOpen ? <PhonePinSheet door={door} pinSet={status ? status.pin_set : null} onClose={closePin} /> : null}
+      {pinFor ? (
+        <PhonePinSheet
+          key={pinFor}
+          door={door}
+          use={pinFor}
+          pinSet={status ? status.pin_set : null}
+          onClose={pinFor === 'live' ? closeLivePin : closePin}
+        />
+      ) : null}
     </Ctx.Provider>
   );
 }

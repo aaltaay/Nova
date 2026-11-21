@@ -1,6 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import { attachErrorCollector } from './helpers/errorCollector';
-import { PHONE_PIN, mockPhoneApi, phoneOverflow } from './helpers/phoneApi';
+import { PHONE_LIVE_PIN, PHONE_PIN, mockPhoneApi, phoneOverflow } from './helpers/phoneApi';
 
 // Nova on the phone (ADR 070): every screen against a stand-in API. Nothing here reaches a real backend.
 const PORTRAIT = { width: 360, height: 720 };
@@ -288,13 +288,42 @@ test('Home cancels a working order through the door and says what the desk answe
   expect(api.writes).toEqual(['POST /api/phone/unlock', 'DELETE /api/phone/order/7']);
 });
 
-test('a desk on Live is shown as it is, and the phone will not open its padlock: Live is look only', async ({ page }) => {
-  await mockPhoneApi(page, { venue: 'live' });
+test("on Live the padlock opens only with the desk's Live PIN, typed on the phone after its own PIN", async ({ page }) => {
+  const { errors } = attachErrorCollector(page);
+  const api = await mockPhoneApi(page, { venue: 'live' });
   await open(page, 'settings');
   await expect(page.getByTestId('phone-settings-venues').locator('[aria-pressed="true"]')).toHaveAttribute('data-venue', 'live');
-  const unlock = page.getByTestId('phone-settings-padlock').getByRole('button', { name: 'Unlock' });
-  await expect(unlock).toBeDisabled();
-  await expect(unlock).toHaveAttribute('data-why', /Live is look only/);
+  const padlock = page.getByTestId('phone-settings-padlock');
+  await expect(padlock).toContainText('your Live PIN opens it');
+  await padlock.getByRole('button', { name: 'Unlock' }).click();
+
+  // The phone is locked: its own PIN first, then the Live PIN on a sheet of its own.
+  const sheet = page.getByTestId('phone-pin-sheet');
+  await expect(sheet).toHaveAttribute('data-use', 'unlock');
+  for (const digit of PHONE_PIN) await sheet.getByRole('button', { name: digit, exact: true }).click();
+  await expect(sheet).toHaveAttribute('data-use', 'live');
+  await expect(sheet).toContainText('Live PIN');
+  await expect(sheet).toContainText('real money, sent to IBKR');
+  expect(await phoneOverflow(page)).toEqual([]);
+
+  // The phone's own PIN never opens Live: the desk says so in its own words.
+  for (const digit of PHONE_PIN) await sheet.getByRole('button', { name: digit, exact: true }).click();
+  await expect(sheet).toContainText('Wrong PIN');
+  expect(api.state.armed).toBe(false);
+
+  for (const digit of PHONE_LIVE_PIN) await sheet.getByRole('button', { name: digit, exact: true }).click();
+  await expect(sheet).toBeHidden();
+  await expect(page.getByTestId('phone-banner')).toContainText('Padlock open · LIVE');
+  await expect(page.getByTestId('phone-banner')).toContainText('Real money: orders go to IBKR.');
+  await expect(padlock).toContainText('Padlock open');
+  expect(api.state.armed).toBe(true);
+  expect(api.writes).toEqual(['POST /api/phone/unlock', 'POST /api/phone/arm', 'POST /api/phone/arm']);
+
+  // Locking needs no PIN.
+  await padlock.getByRole('button', { name: 'Lock' }).click();
+  await expect(padlock).toContainText('Padlock locked');
+  expect(api.state.armed).toBe(false);
+  expect(errors).toEqual([]);
 });
 
 test('when the account stops answering, the last rows stay and the screen says they are not current', async ({ page }) => {

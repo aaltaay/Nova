@@ -51,6 +51,8 @@ export interface PhoneTrade {
   linkQuiet: boolean;
   /** The padlock: false while locked. Null before the desk has said. */
   armed: boolean | null;
+  /** The desk's share limit on its venue (`/api/ibkr/status` `qty_cap`): Live's, null on Paper and Sim. */
+  qtyCap: number | null;
   /** Run one of the desk's one-tap actions. `how: 'done'` for a cancel. */
   act: (label: string, action: NovaActionRecord, how?: 'sent' | 'done') => void;
   /** Send the ticket's own order. */
@@ -103,6 +105,9 @@ function bookWhyOf(depth: ReturnType<typeof useIbkrDepth>): string | null {
   return null;
 }
 
+/** A tap before the phone has read the desk's venue: nothing is sent, since nothing on the screen names one. */
+export const NO_VENUE_YET = "The phone has not read the desk's venue yet, so nothing was sent. Wait a second and tap again.";
+
 const PHONE_DEPTH = { watchLink: true } as const;
 const PHONE_TAPE = { watchLink: true, recent: PHONE_TAPE_RECENT } as const;
 
@@ -137,18 +142,22 @@ export function usePhoneTrade(symbol: string): PhoneTrade {
     requestConfirm: () => Promise.resolve(true),
   }), [symbol, status.connected, status.spend_status, status.mode, accountError, position, othersHold, bid, ask, depthSubscribed]);
 
+  // Every write names the venue drawn on this screen at the tap, never one another poll read (review of PR #1346):
+  // the desk's status can see a switch to Live before the phone's own heartbeat does, and a button drawn on Paper
+  // must not send to the real account. The door refuses it when the desk has left that venue.
   const { order, venue: shownVenue } = session;
   const act = useCallback((label: string, action: NovaActionRecord, how: 'sent' | 'done' = 'sent') => {
     order(label, async (): Promise<TicketAnswer> => {
-      const result = await runNovaAction(action, runtime);
+      if (!shownVenue) return { ok: false, text: NO_VENUE_YET };
+      const result = await runNovaAction(action, { ...runtime, venue: shownVenue });
       return { ok: result.ok, text: result.text };
     }, how);
-  }, [order, runtime]);
+  }, [order, runtime, shownVenue]);
 
   const place = useCallback((label: string, payload: ManualOrderPayload, referencePrice?: number | null) => {
-    // The venue the ticket showed at the tap: the door refuses the order once the desk has left it.
-    const sent: ManualOrderPayload = { ...payload, venue: payload.venue ?? shownVenue };
     order(label, async (): Promise<TicketAnswer> => {
+      if (!shownVenue) return { ok: false, text: NO_VENUE_YET };
+      const sent: ManualOrderPayload = { ...payload, venue: shownVenue };
       const result = await placeIbkrOrder(sent, newGestureKey('phone_ticket'), { referencePrice });
       return { ok: result.ok, text: result.ok ? `Order #${String(result.order_id ?? '?')} placed` : result.error ?? 'The desk refused the order.' };
     });
@@ -173,6 +182,7 @@ export function usePhoneTrade(symbol: string): PhoneTrade {
     lag,
     linkQuiet: depth.quietSince != null || tape.quietSince != null,
     armed: session.armed,
+    qtyCap: status.qty_cap ?? null,
     act,
     place,
   };

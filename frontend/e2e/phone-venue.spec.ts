@@ -23,7 +23,7 @@ test('the venue pill opens the menu, says what a switch would change, and a tap 
   await expect(menu).toBeVisible();
   await expect(menu.getByRole('menuitemradio')).toHaveCount(3);
   await expect(page.getByTestId('phone-venue-paper')).toHaveAttribute('aria-checked', 'true');
-  await expect(page.getByTestId('phone-venue-live')).toContainText('look only from the phone');
+  await expect(page.getByTestId('phone-venue-live')).toContainText('the padlock asks for your Live PIN');
   await expect(page.getByTestId('phone-venue-stake')).toContainText('The desk is armed on Paper: switching disarms it');
   await expect(page.getByTestId('phone-venue-stake')).toContainText('Your own orders and shares stay on Paper.');
   expect(await phoneOverflow(page)).toEqual([]);
@@ -45,7 +45,7 @@ test('the venue pill opens the menu, says what a switch would change, and a tap 
   // On Sim at the live edge the screen stays live, the strip moves the desk's playhead, and the ticket trades.
   const strip = page.getByTestId('phone-sim-strip');
   await expect(strip).toContainText('live edge');
-  await expect(page.getByTestId('phone-buy-market')).not.toHaveAttribute('data-why', /look only|Sim ·/);
+  await expect(page.getByTestId('phone-buy-market')).not.toHaveAttribute('data-why', /Sim ·/);
   await page.getByTestId('phone-sim-play').click();
   await expect.poll(() => api.simMoves.length).toBe(1);
   expect(api.simMoves[0]).toEqual({ paused: true, symbol: 'ABCD' });
