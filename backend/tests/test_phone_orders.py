@@ -18,9 +18,12 @@ from phone.constants_phone import (
     PHONE_PIN_LOCKED,
     PHONE_PIN_LOCKOUT_SEC,
     PHONE_PIN_MAX_FAILURES,
+    PHONE_PAGE_OUTDATED,
     PHONE_PIN_NOT_SET,
     PHONE_SESSION_HEADER,
     PHONE_SESSION_SEC,
+    PHONE_SHOWN_VENUE_HEADER,
+    PHONE_VENUE_MISMATCH,
 )
 from request_guard.constants_request_guard import REASON_REMOTE_VIEW_ONLY
 from request_guard.middleware import RequestGuardMiddleware
@@ -215,7 +218,8 @@ def test_on_live_the_phone_orders_through_the_desks_own_handlers(phone, monkeypa
 
     client, state = phone
     monkeypatch.setattr(safety, "arm_requires_pin", lambda: state["venue"] == "live")
-    unlocked = _unlock(client)
+    # The phone's screen shows Live, and says so with every write.
+    unlocked = {**_unlock(client), PHONE_SHOWN_VENUE_HEADER: "live"}
     state["venue"] = "live"
     limit = {**ORDER, "order_type": "LMT", "limit_price": 4.87}
     assert client.post("/api/phone/order", headers=unlocked, json=limit).json()["ok"] is True
@@ -228,6 +232,47 @@ def test_on_live_the_phone_orders_through_the_desks_own_handlers(phone, monkeypa
     assert (status["venue"], status["trades"], status["arm_requires_pin"]) == ("live", True, True)
     state["venue"] = "paper"
     assert client.get("/api/phone", headers=unlocked).json()["arm_requires_pin"] is False
+
+
+def test_a_phone_write_names_the_venue_its_screen_shows_or_is_refused(phone):
+    """Review of PR #1346: the desk's other polls can see a switch to Live before the phone's own does. A Quick button
+    drawn on Paper stamped with Live by another poll is refused, never sent to the real account; nor a cancel."""
+    client, state = phone
+    shows_paper = {**_unlock(client), PHONE_SHOWN_VENUE_HEADER: "paper"}
+    state["venue"] = "live"
+    refused = [
+        client.post("/api/phone/order", headers=shows_paper, json={**ORDER, "venue": "live"}),
+        client.delete("/api/phone/order/3?venue=live", headers=shows_paper),
+        client.delete("/api/phone/orders?symbol=F&venue=live", headers=shows_paper),
+    ]
+    for res in refused:
+        assert res.status_code == 409
+        assert res.json()["detail"]["reason"] == PHONE_VENUE_MISMATCH
+        assert "showed Paper but this named Live" in res.json()["detail"]["error"]
+    assert state["sent"] == []
+    # A write that names no venue takes the one the screen shows: the door then refuses it if the desk is elsewhere.
+    assert client.post("/api/phone/order", headers=shows_paper, json=ORDER).status_code == 200
+    assert state["sent"][0].venue == "paper"
+
+
+def test_a_page_that_does_not_say_what_it_shows_only_looks_at_live(phone):
+    """A phone page built before 2026-11-20 sends no ``X-Nova-Phone-Venue``: it trades Paper and Sim as it did, and on
+    Live it only looks, so a page not yet rebuilt never sends to the real account."""
+    client, state = phone
+    old_page = _unlock(client)
+    assert client.post("/api/phone/order", headers=old_page, json=ORDER).status_code == 200
+    state["venue"] = "live"
+    for res in (client.post("/api/phone/order", headers=old_page, json=ORDER),
+                client.post("/api/phone/order", headers=old_page, json={**ORDER, "venue": "live"}),
+                client.delete("/api/phone/order/3", headers=old_page),
+                client.delete("/api/phone/orders?all_symbols=true", headers=old_page)):
+        assert res.status_code == 409
+        assert res.json()["detail"]["reason"] == PHONE_PAGE_OUTDATED
+        assert "Reload Nova on your phone" in res.json()["detail"]["error"]
+    # A Live stamp from another poll while the desk is still on Paper is refused too.
+    state["venue"] = "paper"
+    assert client.post("/api/phone/order", headers=old_page, json={**ORDER, "venue": "live"}).status_code == 409
+    assert [o.venue for o in state["sent"]] == ["paper"]
 
 
 def test_on_sim_the_phone_trades_the_sim(phone):
@@ -338,9 +383,10 @@ def test_the_desks_own_order_body_is_read_past_never_trusted(phone):
 def test_cancel_all_reaches_every_symbol_on_the_venue_tapped(phone):
     client, state = phone
     unlocked = _unlock(client)
-    # The venue the cancel was tapped on is kept, Live too (the door refuses it if the desk is elsewhere); none named
-    # is the desk's.
-    assert client.delete("/api/phone/orders?all_symbols=true&venue=live", headers=unlocked).status_code == 200
+    # The venue the cancel was tapped on is kept, Live too when the phone's screen showed Live (the door refuses it if
+    # the desk is elsewhere); none named is the desk's.
+    shows_live = {**unlocked, PHONE_SHOWN_VENUE_HEADER: "live"}
+    assert client.delete("/api/phone/orders?all_symbols=true&venue=live", headers=shows_live).status_code == 200
     assert client.delete("/api/phone/orders?all_symbols=true", headers=unlocked).status_code == 200
     assert client.delete("/api/phone/orders?symbol=F&venue=paper", headers=unlocked).status_code == 200
     assert state["sent"] == [("cancel_symbol", None, True, "live"), ("cancel_symbol", None, True, "paper"),

@@ -358,6 +358,14 @@ rewritten by them here, as decision 19 required.
     for the Live PIN.
 50. **The link test page stays Paper and Sim.** It is a measuring tool with plain buttons (decision 7); on Live
     its order panel says so and sends nothing.
+51. **A phone write names the venue on its screen, twice** (review of PR #1346). The desk's status poll can see a
+    switch to Live before the phone's own heartbeat does; with the Live refusal gone, a Quick button drawn on Paper
+    could otherwise have sent to Live, because the desk's ticket code read the venue from that poll. Every phone
+    order and cancel now names the venue drawn on the screen at the tap, and every write also says it in
+    `X-Nova-Phone-Venue` (the screen at the send). The route refuses a write whose two differ
+    (`PHONE_VENUE_MISMATCH`), and the door then refuses a venue the desk has left (`VENUE_CHANGED`). A page that
+    does not say what it shows was built before this amendment: it trades Paper and Sim as before, and on Live it
+    only looks (`PHONE_PAGE_OUTDATED`: reload the page), so the PC can update before the phone page is rebuilt.
 
 Not in this change, and still listed in #1309: the sideways Trade board (a Live board), "Stop with every Live buy"
 and "Stop if this phone goes silent" (drawn, off and locked), starring, drawing, the Massive-file replay on Sim.

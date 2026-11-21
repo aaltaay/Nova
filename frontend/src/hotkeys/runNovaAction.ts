@@ -134,7 +134,8 @@ export async function runNovaAction(
   // the same key, so a re-fired hotkey replays instead of doubling up.
   const idempotencyKey = newGestureKey(`nova_action:${action.kind}`);
   // And one venue, read here: the confirm names this account, so a desk that leaves it sends nothing (#1281, #1283).
-  const runtime: NovaActionRuntime = { ...desk, venue: getConfirmedDeskVenueSnapshot().venue };
+  // A caller that drew the venue itself keeps its own (the phone: the one on its screen, review of PR #1346).
+  const runtime: NovaActionRuntime = { ...desk, venue: desk.venue ?? getConfirmedDeskVenueSnapshot().venue };
 
   if (action.kind === 'cancel_all_orders') {
     const gated = gateFor(action.kind, runtime);

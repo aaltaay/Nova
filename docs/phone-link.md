@@ -117,8 +117,10 @@ it on the home screen, full screen; it opens there from then on.
   and stock are chosen on the PC. A stock that is not the one replaying shows the desk's words instead of a book.
 - *On Live* the screen's edge turns the Live colour and the buttons say LIVE: real money, sent to IBKR. Opening
   the padlock asks for your Live PIN, the one you type on the PC. Live sends at most the Live share limit
-  (`IBKR_QTY_CAP` on the PC, one share unless you changed it): the ticket offers no bigger size and says when the
-  limit cuts a sell. Flatten always sells the whole position.
+  (`IBKR_QTY_CAP` on the PC, one share unless you changed it): the ticket offers no bigger size, and a sell says
+  the shares that go. Flatten always sells the whole position. Every order names the venue the phone's screen shows,
+  so a tap on Paper never reaches Live, even in the second before the phone sees the PC switch. A phone page built
+  before Live from the phone (2026-11-20) cannot send to Live: reload it.
 - *Level 2's marks* are the desk's: a big seller or buyer is a dark block framed in white, a hidden seller or buyer
   a violet mark, what was pulled an amber one. The small depth chart under the book opens a page with it large and
   every mark spelled out. Settings turns the marks and the chart off.

@@ -10,6 +10,8 @@
  */
 
 const SESSION_HEADER = 'X-Nova-Phone-Session';
+/** The venue the phone's screen shows: every write carries it, and the door refuses one that names another (PR #1346). */
+export const SHOWN_VENUE_HEADER = 'X-Nova-Phone-Venue';
 const TIMEOUT_MS = 8_000;
 
 /** The venue a tap was on, as the door reads it; undefined (the desk's venue at receipt) for anything else. */
@@ -142,19 +144,36 @@ export function closingOrder(row: { qty?: unknown; position_side?: unknown } | u
 
 export class PhoneDoor {
   private token: string | null = null;
+  private shown: string | null = null;
   private readonly apiBase: string;
 
   constructor(apiBase: string) {
     this.apiBase = apiBase;
   }
 
+  /**
+   * The venue the phone's screen shows now (null: none yet). Every write says it (`X-Nova-Phone-Venue`), so the door
+   * refuses one that names another venue: a button drawn on Paper never sends to Live. A page that says nothing is
+   * judged as one older than Live from the phone, which only looks at Live.
+   */
+  showing(venue: string | null): void {
+    this.shown = venue;
+  }
+
+  /** The headers every request through this door carries: the session, and the venue the screen shows. */
+  private headers(): Record<string, string> {
+    const headers: Record<string, string> = {};
+    if (this.token) headers[SESSION_HEADER] = this.token;
+    if (this.shown) headers[SHOWN_VENUE_HEADER] = this.shown;
+    return headers;
+  }
+
   private async call(method: string, path: string, body?: unknown): Promise<{ status: number; body: unknown; ms: number }> {
     const controller = new AbortController();
     const timeout = window.setTimeout(() => controller.abort(), TIMEOUT_MS);
     const started = performance.now();
-    const headers: Record<string, string> = {};
+    const headers = this.headers();
     if (body !== undefined) headers['Content-Type'] = 'application/json';
-    if (this.token) headers[SESSION_HEADER] = this.token;
     try {
       const res = await fetch(`${this.apiBase}${path}`, {
         method, headers, cache: 'no-store', signal: controller.signal,
@@ -188,12 +207,12 @@ export class PhoneDoor {
   }
 
   /**
-   * The header a write through the phone's door carries, for the desk's own ticket code (`ibkr/orderDoor`):
-   * the Trade screen sends an order with the function the desk's ticket sends it with. Empty while locked,
-   * and the backend then refuses the write `PHONE_LOCKED`.
+   * The headers a write through the phone's door carries, for the desk's own ticket code (`ibkr/orderDoor`): the
+   * Trade screen sends an order with the function the desk's ticket sends it with. The session (none while locked,
+   * and the backend then refuses the write `PHONE_LOCKED`) and the venue the screen shows.
    */
   sessionHeaders(): Record<string, string> {
-    return this.token ? { [SESSION_HEADER]: this.token } : {};
+    return this.headers();
   }
 
   /**

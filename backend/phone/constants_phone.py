@@ -11,6 +11,10 @@ PHONE_API_PREFIX = "/api/phone"
 PHONE_PIN_HASH_ENV = "NOVA_PHONE_PIN_HASH"
 # The header an unlocked phone sends with every write.
 PHONE_SESSION_HEADER = "X-Nova-Phone-Session"
+# The venue the phone's screen shows, sent with every write (amendment 2026-11-20, review of PR #1346): a write that
+# names another venue is refused, and a page that does not send it (one older than Live from the phone) only looks at
+# Live, as it did.
+PHONE_SHOWN_VENUE_HEADER = "X-Nova-Phone-Venue"
 # How long one unlock lasts. A backend restart ends it sooner: the session lives in memory.
 PHONE_SESSION_SEC = 8 * 3600.0
 # Wrong PINs in a row before the lockout, and how long it lasts (the Live PIN's numbers, counted apart).
@@ -29,6 +33,8 @@ PHONE_PIN_INVALID = "PHONE_PIN_INVALID"
 PHONE_PIN_LOCKED = "PHONE_PIN_LOCKED"
 PHONE_LOCKED = "PHONE_LOCKED"
 PHONE_NO_VIEW = "PHONE_NO_VIEW"
+PHONE_VENUE_MISMATCH = "PHONE_VENUE_MISMATCH"
+PHONE_PAGE_OUTDATED = "PHONE_PAGE_OUTDATED"
 
 
 def is_phone_path(path: str) -> bool:

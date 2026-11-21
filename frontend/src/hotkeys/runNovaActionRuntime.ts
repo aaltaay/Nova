@@ -21,7 +21,10 @@ export interface NovaActionRuntime {
   topOfBook: TopOfBook | null;
   /** Called when place-confirm is required; return true to proceed. */
   requestConfirm?: (summary: string) => Promise<boolean>;
-  /** The venue this keypress landed on, read once by `runNovaAction`: every send names it (#1283). */
+  /**
+   * The venue this keypress landed on: every send names it (#1283). The desk leaves it unset and `runNovaAction` reads
+   * the desk's confirmed venue once; a caller that drew the venue itself sets it (the phone: its screen's, PR #1346).
+   */
   venue?: DeskVenue | null;
 }
 

@@ -321,6 +321,26 @@ test('under a raised Live limit the ticket offers the sizes under it, and the lo
   expect(api.writes).toEqual([]);
 });
 
+test("a buy drawn on Paper names Paper when the desk's status already says Live, and never reaches Live", async ({ page }) => {
+  // The PC moved to Live and opened its padlock: the desk's status has seen it, the phone's own heartbeat has not.
+  const api = await mockPhoneApi(page, { venue: 'live', phoneLagsAt: 'paper', armed: true });
+  await openTrade(page);
+  await expect(page.getByTestId('phone-venue')).toHaveText('PAPER');
+  const buy = page.getByTestId('phone-buy-market');
+  await expect(buy).toContainText('BUY 100');
+  await expect(buy).not.toContainText('LIVE');
+  await unlockWithATap(page, buy, api);
+  await buy.click();
+  await expect.poll(() => api.orders.length).toBe(1);
+  // The order names the venue on the screen, and says so in the door's header too.
+  expect(api.orders[0]).toMatchObject({ side: 'BUY', venue: 'paper' });
+  expect(api.shown.at(-1)).toBe('paper');
+  // The door refuses it: the desk is on Live, and nothing reached the real account.
+  await expect(page.getByTestId('phone-banner')).toContainText('NOT SENT');
+  await expect(page.getByTestId('phone-banner')).toContainText('The desk moved from Paper to Live');
+  expect(api.state.held).toBe(500);
+});
+
 test('on Live a locked padlock asks for the Live PIN before anything is sent', async ({ page }) => {
   const api = await mockPhoneApi(page, { venue: 'live' });
   await openTrade(page);

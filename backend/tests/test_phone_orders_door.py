@@ -13,7 +13,7 @@ from ibkr import safety as _safety
 from market_view import gate
 from phone import pin, session
 from constants_ibkr import ARM_PIN_HASH_ENV
-from phone.constants_phone import PHONE_PIN_HASH_ENV, PHONE_SESSION_HEADER
+from phone.constants_phone import PHONE_PIN_HASH_ENV, PHONE_SESSION_HEADER, PHONE_SHOWN_VENUE_HEADER
 from practice import broker as practice_broker
 from practice.broker import for_venue, reset_for_tests
 from request_guard.middleware import RequestGuardMiddleware
@@ -175,10 +175,11 @@ def test_on_live_a_phone_order_is_the_desks_live_order(phone, monkeypatch):
     client, unlocked = phone
     monkeypatch.setenv(IBKR_QTY_CAP_ENV, "1")
     set_venue("live")
-    shut = client.post("/api/phone/order", headers=unlocked, json=_order(venue="live")).json()
+    shows_live = {**unlocked, PHONE_SHOWN_VENUE_HEADER: "live"}
+    shut = client.post("/api/phone/order", headers=shows_live, json=_order(venue="live")).json()
     assert (shut["ok"], shut["reason_code"]) == (False, "DISARMED")
     assert client.post("/api/phone/arm", headers=unlocked, json={"armed": True, "pin": LIVE_PIN}).json()["armed"] is True
-    sent = client.post("/api/phone/order", headers=unlocked, json=_order(venue="live", qty=5)).json()
+    sent = client.post("/api/phone/order", headers=shows_live, json=_order(venue="live", qty=5)).json()
     assert sent["ok"] is False and sent["reason_code"] == "ORDERS_GATE", sent
     row = store.get_by_id(sent["execution_id"])
     assert (row["source"], row["payload"]["venue"]) == ("manual", "live")
@@ -193,7 +194,8 @@ def test_a_tap_on_live_never_trades_paper_after_the_desk_moved(phone):
     client, unlocked = phone
     set_venue("paper")
     _safety.set_armed(True, reason="test")
-    moved = client.post("/api/phone/order", headers=unlocked, json=_order(venue="live")).json()
+    shows_live = {**unlocked, PHONE_SHOWN_VENUE_HEADER: "live"}
+    moved = client.post("/api/phone/order", headers=shows_live, json=_order(venue="live")).json()
     assert (moved["ok"], moved["reason_code"]) == (False, "VENUE_CHANGED")
     assert for_venue("paper").working_orders() == []
     # A padlock opened on Paper is not one on Live: a move to Live leaves the desk locked there.
@@ -217,7 +219,8 @@ def test_a_tap_on_paper_never_trades_sim_after_the_desk_moved(phone):
     one = client.delete("/api/phone/order/41?venue=paper", headers=unlocked).json()
     assert one["ok"] is False, one
     # A tap on Live goes to Live's door, which the desk has left; a venue that does not exist is not read at all.
-    live = client.post("/api/phone/order", headers=unlocked, json=_order(venue="live")).json()
+    shows_live = {**unlocked, PHONE_SHOWN_VENUE_HEADER: "live"}
+    live = client.post("/api/phone/order", headers=shows_live, json=_order(venue="live")).json()
     assert (live["ok"], live["reason_code"]) == (False, "VENUE_CHANGED")
     assert client.delete(f"/api/phone/orders?symbol={SYM}&venue=bank", headers=unlocked).status_code == 422
 

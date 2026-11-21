@@ -178,6 +178,24 @@ describe("the door, as the phone's screens use it", () => {
     expect(JSON.parse(String(fetchMock.mock.calls[4][1]?.body))).not.toHaveProperty('venue');
   });
 
+  it('says on every write the venue the screen shows, and nothing before it shows one (PR #1346)', async () => {
+    const fetchMock = vi.fn((_url: string, _init?: RequestInit) => answer(200, { ...STATUS, token: 'tok-5' }));
+    vi.stubGlobal('fetch', fetchMock);
+    const door = new PhoneDoor('https://pc.test:8443');
+    await door.unlock('123456');
+    expect(door.sessionHeaders()).toEqual({ 'X-Nova-Phone-Session': 'tok-5' });
+
+    door.showing('paper');
+    await door.cancelOrder(41, 'ABCD Sell 250', 'paper');
+    const sent = fetchMock.mock.calls[1][1]?.headers as Record<string, string>;
+    expect(sent).toMatchObject({ 'X-Nova-Phone-Session': 'tok-5', 'X-Nova-Phone-Venue': 'paper' });
+    // The desk's own ticket code sends through the same headers.
+    expect(door.sessionHeaders()).toEqual({ 'X-Nova-Phone-Session': 'tok-5', 'X-Nova-Phone-Venue': 'paper' });
+
+    door.showing(null);
+    expect(door.sessionHeaders()).toEqual({ 'X-Nova-Phone-Session': 'tok-5' });
+  });
+
   it('opens the padlock with the Live PIN only when one is typed, and never sends a PIN to lock it', async () => {
     const fetchMock = vi.fn((_url: string, _init?: RequestInit) => answer(200, { ...STATUS, venue: 'live', paper: false, trades: true, armed: true }));
     vi.stubGlobal('fetch', fetchMock);

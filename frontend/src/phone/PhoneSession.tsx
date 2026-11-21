@@ -10,6 +10,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -169,6 +170,11 @@ export function PhoneSessionProvider({ children }: { children: ReactNode }) {
 
   const status = view.status;
   const unlocked = status?.unlocked === true && door.hasSession();
+  // Every write says the venue the screen shows (review of PR #1346), set before it is painted.
+  const shownVenue = asVenue(status?.venue);
+  useLayoutEffect(() => {
+    door.showing(shownVenue);
+  }, [door, shownVenue]);
 
   const askPin = useCallback((then?: () => void) => {
     afterPin.current = then ?? null;
@@ -288,7 +294,7 @@ export function PhoneSessionProvider({ children }: { children: ReactNode }) {
   const value = useMemo<PhoneSessionValue>(() => ({
     door,
     link: view,
-    venue: asVenue(status?.venue),
+    venue: shownVenue,
     armed: status ? status.armed : null,
     // An older backend says `paper` only: it traded Paper alone.
     trades: status ? status.trades ?? status.paper : null,
@@ -310,7 +316,7 @@ export function PhoneSessionProvider({ children }: { children: ReactNode }) {
     closeNoLink,
     openNoLink,
     retryLink,
-  }), [armNeedsPin, askPin, banner, closeNoLink, door, lockPhone, moveSim, moveVenue, noLinkOpen, openNoLink, order, retryLink, send, setArmed, show, status, unlocked, view]);
+  }), [armNeedsPin, askPin, banner, closeNoLink, door, lockPhone, moveSim, moveVenue, noLinkOpen, openNoLink, order, retryLink, send, setArmed, show, shownVenue, status, unlocked, view]);
 
   return (
     <Ctx.Provider value={value}>

@@ -389,6 +389,13 @@ padlock opens without one, as on the desk; a `pin` sent there is not read. Locki
 **The session.** One random token in memory. It ends 8 hours after the unlock, on Lock, on a newer unlock, and when
 the backend restarts. Every write but the unlock carries it in `X-Nova-Phone-Session`.
 
+**The venue on the screen** (review of PR #1346). Every write also carries `X-Nova-Phone-Venue: live|paper|sim`,
+the venue the phone's screen shows when it is sent (`PhoneDoor.showing`, set before each paint). An order or a
+cancel whose `venue` names another is refused `PHONE_VENUE_MISMATCH`, and one that names none takes the header's.
+The desk's status poll can see a switch to Live before the phone's own heartbeat does: a button drawn on Paper
+never sends to Live because another read named it. A page that sends no header is older than Live from the
+phone: it trades Paper and Sim as before, and anything it would send to Live is refused `PHONE_PAGE_OUTDATED`.
+
 | Route | Body | Answer |
 |---|---|---|
 | `GET /api/phone` | -- | `{schema_version: 1, pin_set, unlocked, expires_at, venue, paper, trades, armed, arm_requires_pin, now}`; `unlocked` and `expires_at` read the session header when sent; `trades` is true on every venue since 2026-11-20 (an older backend said false on Live); `arm_requires_pin` is true while opening the padlock needs the Live PIN (the desk on Live); `now` is the PC's clock (epoch s), which the phone's screens read once a second to time the link and correct their clock |
@@ -410,11 +417,14 @@ Refusals are `{"detail": {"reason": <code>, "error": <words>}}`:
 | 401 | `PHONE_LOCKED` | no session, an ended one, or a wrong token |
 | 403 | `PHONE_PIN_REQUIRED`, `PHONE_PIN_NOT_SET`, `PHONE_PIN_INVALID`, `PHONE_PIN_LOCKED` | the unlock |
 | 403 | `ARM_PIN_REQUIRED`, `ARM_PIN_NOT_SET`, `ARM_PIN_INVALID`, `ARM_PIN_LOCKED` | opening the padlock on Live: the desk's own Live PIN refusals, in its words |
+| 409 | `PHONE_VENUE_MISMATCH` | an order or a cancel whose `venue` is not the one `X-Nova-Phone-Venue` says the screen showed |
+| 409 | `PHONE_PAGE_OUTDATED` | an order or a cancel bound for Live from a page that sends no `X-Nova-Phone-Venue` (one built before 2026-11-20): reload the page on the phone |
 | 409 | `PHONE_NO_VIEW` | a new entry whose `view` has no `book` or no `instance`: the phone received no Level 2 to price it from. A sell out of a long, a buy that covers and a Flatten are not held |
 | 422 | -- | an order without `client_timing` or `view`, or with a field the phone does not send |
 
 **What an order becomes.** The phone's route builds the desk's own `OrderRequest` with the venue the operator
-tapped on (`venue`, the one the phone's screen showed; none named is the desk's venue at receipt) -- `live`,
+tapped on (`venue`, the one the phone's screen showed; none named is the header's, or for an older page the desk's
+venue at receipt) -- `live`,
 `paper` or `sim` (Sim since 2026-11-13, Live since 2026-11-20) -- and calls the desk's own handler, so the command
 is the one a desk order makes (`source: "manual"`, or `flatten` with `intent: "flatten"`) with that
 `expected_venue`. The door refuses it `VENUE_CHANGED` when the desk is no longer on that venue, so a tap on one

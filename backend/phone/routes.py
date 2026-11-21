@@ -29,9 +29,12 @@ from phone.constants_phone import (
     PHONE_API_PREFIX,
     PHONE_LOCKED,
     PHONE_NO_VIEW,
+    PHONE_PAGE_OUTDATED,
     PHONE_SCHEMA_VERSION,
+    PHONE_SHOWN_VENUE_HEADER,
     PHONE_SIM_CLOCK_KEYS,
     PHONE_VENUE,
+    PHONE_VENUE_MISMATCH,
 )
 from routes import trading_execution as desk
 
@@ -94,13 +97,35 @@ def require_session(x_nova_phone_session: str | None = Header(default=None)) -> 
     return str(x_nova_phone_session)
 
 
-def _order_venue(tapped: str | None = None) -> str:
-    """The venue a phone write goes to: the one the operator tapped on when the phone names it, else the desk's now.
+_VENUE_NAME = {"live": "Live", "paper": "Paper", "sim": "Sim"}
 
-    Handed to the door unchanged: when the desk is no longer on it by the time the write is sent, the door refuses
-    ``VENUE_CHANGED``, so a tap on one venue never buys, sells, flattens or cancels on another. Live is judged there
-    like any desk order since 2026-11-20 -- the padlock it needs opens only with the Live PIN."""
-    return tapped or _venue()
+
+def _shown_venue(request: Request) -> str | None:
+    """The venue the phone's screen showed when the write was sent (``X-Nova-Phone-Venue``); None when it said none."""
+    raw = (request.headers.get(PHONE_SHOWN_VENUE_HEADER) or "").strip().lower()
+    return raw if raw in _VENUE_NAME else None
+
+
+def _order_venue(request: Request, tapped: str | None = None) -> str:
+    """The venue a phone write goes to: the one the phone's screen showed at the tap.
+
+    The page says it twice: in the write (``venue``, the screen at the tap) and in ``X-Nova-Phone-Venue`` (the
+    screen at the send). A write whose two differ is refused, so a button drawn on Paper never sends to Live because
+    another of the page's polls saw the desk move first (review of PR #1346). The venue is then handed to the door
+    unchanged, which refuses ``VENUE_CHANGED`` when the desk is no longer on it, and judges Live like any desk order
+    -- the padlock it needs opens only with the Live PIN. A page that does not say what it shows is older than Live
+    from the phone (2026-11-20): it trades Paper and Sim as it did, and on Live it only looks."""
+    shown = _shown_venue(request)
+    if shown is None:
+        where = tapped or _venue()
+        if where == "live":
+            raise _refuse(PHONE_PAGE_OUTDATED, "This page on your phone is older than the desk and cannot send to "
+                          "Live. Reload Nova on your phone. Nothing was sent.", 409)
+        return where
+    if tapped and tapped != shown:
+        raise _refuse(PHONE_VENUE_MISMATCH, f"Your phone showed {_VENUE_NAME[shown]} but this named "
+                      f"{_VENUE_NAME.get(tapped, tapped)}. Nothing was sent. Check the venue and tap again.", 409)
+    return shown
 
 
 def _status(token: str | None) -> dict[str, Any]:
@@ -166,7 +191,7 @@ def arm(body: ArmBody, token: str = Depends(require_session)) -> dict[str, Any]:
 
 @router.post("/order")
 async def place(body: PhoneOrder, request: Request, _token: str = Depends(require_session)) -> dict:
-    where = _order_venue(body.venue)
+    where = _order_venue(request, body.venue)
     order = desk.OrderRequest(
         symbol=body.symbol.strip().upper(), side=body.side, qty=body.qty, order_type=body.order_type,
         limit_price=body.limit_price, stop_price=body.stop_price, reference_price=body.reference_price,
@@ -188,7 +213,7 @@ async def cancel(
     order_id: int, request: Request, venue: Venue | None = None, _token: str = Depends(require_session),
 ) -> dict:
     """Cancel one working order. ``venue``: the one the order was shown on; an order id means nothing elsewhere."""
-    where = _order_venue(venue)
+    where = _order_venue(request, venue)
     return await desk.cancel_order(order_id, request, idempotency_key=None, venue=where)
 
 
@@ -198,8 +223,8 @@ async def cancel_many(
     _token: str = Depends(require_session),
 ) -> dict:
     """Cancel every working order on one symbol, or (``all_symbols=true``) on every symbol, on the venue the
-    operator tapped on (``venue``), else the desk's now."""
-    where = _order_venue(venue)
+    operator tapped on (``venue``), else the one the phone shows."""
+    where = _order_venue(request, venue)
     return await desk.cancel_orders_for_symbol(
         request, symbol=None if all_symbols else symbol, all_symbols=all_symbols, venue=where,
     )
